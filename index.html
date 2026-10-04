@@ -38,15 +38,24 @@
   <div id="toastBox" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-xs"></div>
 
   <nav class="sticky top-0 z-30 w-full bg-[#0a1424]/95 backdrop-blur border-b border-slate-800/80">
-    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-      <a href="#top" class="flex items-center gap-2.5 shrink-0">
-        <span class="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white font-extrabold shadow">Σ</span>
-        <span class="text-sm font-extrabold tracking-tight text-white">Toán OCR <span class="text-cyan-300">Pro</span></span>
-      </a>
-      <div class="hidden md:flex items-center gap-6">
-        <a href="#top" class="text-xs font-medium text-slate-300 hover:text-white transition">Trang chủ</a>
-        <a href="#features" class="text-xs font-medium text-slate-300 hover:text-white transition">Tính năng</a>
-        <a href="tel:0907291079" class="text-xs font-medium text-slate-300 hover:text-white transition">Liên hệ</a>
+    <div class="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div class="flex items-center gap-2.5 shrink-0">
+        <span class="h-9 w-9 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white font-extrabold shadow">Σ</span>
+        <div class="flex flex-col leading-tight">
+          <span class="text-sm font-extrabold tracking-tight text-white">Toán OCR <span class="text-cyan-300">Pro</span></span>
+          <span class="text-[10px] font-semibold text-amber-300">Thầy: Đoàn Văn Lãm - ĐT: 0907291079</span>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <div id="modelBox" class="items-center gap-1.5" style="display:none">
+          <span class="hidden lg:inline text-[10px] font-semibold uppercase tracking-wider text-slate-400">Mô hình AI</span>
+          <select id="selectModel" class="bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            <option value="gemini-flash-latest">gemini-flash-latest</option>
+            <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+          </select>
+        </div>
+        <button onclick="openContact()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition">📞 Liên hệ</button>
       </div>
       <div class="flex items-center gap-2">
         <div id="authGuest" class="flex items-center gap-2">
@@ -65,27 +74,7 @@
 
 <div class="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4 p-3 md:p-6">
     
-    <!-- HERO BANNER -->
-    <section id="top" class="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-[#0b1a33] via-[#0d2447] to-[#0f3150] px-5 py-9 md:py-12 text-center shadow-xl">
-      <div class="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl"></div>
-      <div class="pointer-events-none absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-indigo-500/25 blur-3xl"></div>
-      <div class="relative flex flex-col items-center gap-3.5">
-        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">Chuyển đề thi PDF &amp; ảnh sang <span class="text-cyan-300">Word có công thức</span></h1>
-        <p class="text-sm text-slate-300 max-w-xl">Nhận dạng bằng Gemini, xuất Word Equation / MathType, tự bỏ nội dung thừa và xuất ngay phần đã xong khi hết hạn mức.</p>
-        <p class="flex items-center gap-1.5 text-sm font-semibold text-amber-300"><span>👨‍🏫</span>Thầy: Đoàn Văn Lãm - ĐT: 0907291079</p>
-        <div id="modelBox" class="flex items-center justify-center gap-3">
-        <div class="flex flex-col items-center">
-          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Mô hình AI:</label>
-          <select id="selectModel" class="bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-xl px-3 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-            <option value="gemini-flash-latest">gemini-flash-latest</option>
-            <option value="gemini-3.8-flash">gemini-3.8-flash</option>
-          </select>
-        </div>
-      </div>
-        <div id="features" class="flex flex-wrap justify-center gap-2 pt-1"><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Word Equation thật</span><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Chọn trang cần chuyển</span><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Bỏ qua nội dung tùy ý</span><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Đăng nhập bằng Google</span></div>
-      </div>
-    </section>
+    
 
     <!-- MÀN HÌNH KHÓA (chưa đăng nhập) -->
     <div id="lockScreen" class="flex flex-col items-center justify-center text-center gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-10 shadow-xl">
@@ -112,11 +101,20 @@
           <span>🔑</span> Danh Sách Gemini API Keys:
           <span id="keyCountText" class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded text-[11px]">0 keys</span>
         </label>
-        <button onclick="saveKeysDirectly()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-1.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow">
-          <span>💾</span> Lưu & Đồng Bộ Cloud
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="openGetKey()" class="bg-white hover:bg-slate-100 text-slate-800 font-semibold px-3.5 py-1.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow">
+            <span>🔗</span> Lấy API key
+          </button>
+          <button onclick="pasteKeyFromClipboard(false)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold px-3.5 py-1.5 rounded-xl text-xs transition flex items-center gap-1.5">
+            <span>📋</span> Dán key
+          </button>
+          <button onclick="saveKeysDirectly()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-1.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow">
+            <span>💾</span> Lưu & Đồng Bộ Cloud
+          </button>
+        </div>
       </div>
       <textarea id="directKeyInput" rows="2" placeholder="Dán API Key vào đây (mỗi dòng một key)..." class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"></textarea>
+      <p class="text-[11px] text-slate-500">Bấm <b class="text-slate-300">Lấy API key</b> → đăng nhập Google → tạo key → bấm Copy → quay lại trang này, key sẽ tự được dán và lưu.</p>
     </section>
 
     <!-- 2. TÙY CHỌN 3 ĐỊNH DẠNG CÔNG THỨC TOÁN -->
@@ -745,6 +743,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           'auth/popup-closed-by-user': null, 'auth/cancelled-popup-request': null,
           'auth/popup-blocked': 'Trình duyệt đang chặn cửa sổ đăng nhập. Hãy cho phép popup rồi thử lại.',
           'auth/unauthorized-domain': 'Tên miền này chưa được cho phép. Thêm vào Firebase → Authentication → Settings → Authorized domains.',
+          'auth/configuration-not-found': 'Dự án Firebase chưa khởi tạo Authentication. Vào Firebase Console → Authentication → Get started, rồi bật Google ở Sign-in method.',
           'auth/operation-not-allowed': 'Chưa bật đăng nhập Google trong Firebase Console (Authentication → Sign-in method).',
           'auth/operation-not-supported-in-this-environment': 'Cần mở trang qua https hoặc localhost, không dùng được khi mở trực tiếp file.'
         };
@@ -772,6 +771,56 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       } catch (e) { toast('Lỗi đăng nhập Google: ' + e.message, 'error'); }
     }
     window.addEventListener('DOMContentLoaded', () => { try { firebase.auth().onAuthStateChanged(handleGoogleUser); } catch (e) {} });
+
+    // ===== LẤY API KEY & TỰ ĐỘNG DÁN =====
+    const KEY_RE = /^(AIza[0-9A-Za-z_\-]{30,}|AQ\.[0-9A-Za-z_\-]{20,})$/;
+    let waitingKey = false;
+    function openGetKey() {
+      window.open('https://aistudio.google.com/apikey', '_blank', 'noopener');
+      waitingKey = true;
+      toast('Tạo key ở Google AI Studio rồi bấm Copy. Quay lại đây, key sẽ tự được dán.', 'success');
+    }
+    async function pasteKeyFromClipboard(auto) {
+      try {
+        const t = ((await navigator.clipboard.readText()) || '').trim();
+        const found = t.split(/[\s,]+/).filter(k => KEY_RE.test(k));
+        if (!found.length) { if (!auto) toast('Clipboard chưa có API key hợp lệ. Hãy Copy key trước.'); return false; }
+        const ta = $('directKeyInput');
+        const cur = ta.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+        const add = found.filter(k => !cur.includes(k));
+        if (!add.length) { if (!auto) toast('Key này đã có trong danh sách.'); return false; }
+        ta.value = [...cur, ...add].join('\n');
+        saveKeysDirectly();
+        toast(`Đã dán và lưu ${add.length} key mới.`, 'success');
+        return true;
+      } catch (e) {
+        if (!auto) toast('Trình duyệt chưa cho đọc clipboard. Hãy dán tay (Ctrl+V) vào ô danh sách key.');
+        return false;
+      }
+    }
+    window.addEventListener('focus', () => {
+      if (waitingKey && session) pasteKeyFromClipboard(true).then(ok => { if (ok) waitingKey = false; });
+    });
+
+    // ===== THÔNG TIN LIÊN HỆ =====
+    const CONTACT = { name: 'Thầy Đoàn Văn Lãm', role: 'Người thiết kế & quản trị hệ thống', phone: '0907291079', email: '', school: '', zalo: '', facebook: '' };
+    function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('Đã sao chép: ' + t, 'success')).catch(() => toast('Không sao chép được.')); }
+    function openContact() {
+      const row = (icon, label, val, actions) => `<div class="flex items-center gap-3 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2.5">
+        <span class="text-base">${icon}</span>
+        <div class="flex-1 min-w-0"><p class="text-[10px] uppercase tracking-wider text-slate-500">${label}</p><p class="text-sm font-semibold text-slate-100 break-words">${esc(val)}</p></div>${actions || ''}</div>`;
+      const btn = (t, h) => `<a href="${h}" target="_blank" rel="noopener" class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-semibold">${t}</a>`;
+      const rows = [row('📞', 'Điện thoại', CONTACT.phone, btn('Gọi', 'tel:' + CONTACT.phone) + `<button onclick="copyText('${CONTACT.phone}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold">Sao chép</button>`)];
+      if (CONTACT.zalo) rows.push(row('💬', 'Zalo', CONTACT.zalo, btn('Mở', 'https://zalo.me/' + CONTACT.zalo)));
+      if (CONTACT.email) rows.push(row('✉️', 'Email', CONTACT.email, btn('Gửi', 'mailto:' + CONTACT.email)));
+      if (CONTACT.facebook) rows.push(row('🌐', 'Facebook', CONTACT.facebook, btn('Mở', CONTACT.facebook)));
+      if (CONTACT.school) rows.push(row('🏫', 'Đơn vị công tác', CONTACT.school));
+      openModal('Thông tin liên hệ', `<div class="flex flex-col gap-3">
+        <div class="flex items-center gap-3 pb-1">
+          <span class="h-12 w-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-2xl">👨‍🏫</span>
+          <div><p class="text-sm font-bold text-white">${esc(CONTACT.name)}</p><p class="text-[11px] text-amber-300">${esc(CONTACT.role)}</p></div>
+        </div>${rows.join('')}</div>`);
+    }
 
     // --- Quản trị ---
     function openAdmin() {
