@@ -50,6 +50,7 @@
         <div id="modelBox" class="items-center gap-1.5" style="display:none">
           <span class="hidden lg:inline text-[10px] font-semibold uppercase tracking-wider text-slate-400">Mô hình AI</span>
           <select id="selectModel" class="bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+            <option value="auto">🔄 Tự động (2.5 → cao dần)</option>
             <option value="gemini-2.5-flash">gemini-2.5-flash</option>
             <option value="gemini-flash-latest">gemini-flash-latest</option>
             <option value="gemini-3.8-flash">gemini-3.8-flash</option>
@@ -473,14 +474,14 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         if (valid.length > 0) {
           const select = document.getElementById('selectModel');
           const cur = select.value;
-          select.innerHTML = '';
+          select.innerHTML = '<option value="auto">🔄 Tự động (2.5 → cao dần)</option>';
           valid.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m;
             opt.textContent = m;
             select.appendChild(opt);
           });
-          if (valid.includes(cur)) select.value = cur;
+          select.value = (cur === 'auto' || valid.includes(cur)) ? cur : 'auto';
           log(`Đã nạp ${valid.length} mô hình tự động từ Google.`);
         }
       } catch (e) {}
@@ -884,7 +885,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     async function checkOneKey(k) {
       keyStatus[k] = { state: 'testing', msg: '', ts: Date.now() }; renderKeyChips();
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${$('selectModel').value}:generateContent?key=${k}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${$('selectModel').value === 'auto' ? autoChain()[0] : $('selectModel').value}:generateContent?key=${k}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }], generationConfig: { maxOutputTokens: 1 } })
         });
@@ -1079,9 +1080,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       $('runDot').className = 'h-2 w-2 rounded-full bg-emerald-400 animate-pulse';
       $('resultBanner').className = 'hidden';
       $('chipFail').textContent = '0';
-      stopRequested = false;
+      stopRequested = false; autoLevel = 0;
       setProgress(0, total);
-      log(isPdfFile ? `Bắt đầu OCR trang ${from}–${to} (${total} trang) · ${model}` : `Bắt đầu OCR ảnh · ${model}`);
+      log(isPdfFile ? `Bắt đầu OCR trang ${from}–${to} (${total} trang) · ${model === 'auto' ? 'tự động (2.5 → cao dần)' : model}` : `Bắt đầu OCR ảnh · ${model === 'auto' ? 'tự động (2.5 → cao dần)' : model}`);
 
       try {
         for (let i = 0; i < total; i++) {
@@ -1131,10 +1132,10 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       }
     }
 
-    async function callGeminiSinglePageWithRetry(base64Data, model) {
+    async function callGeminiWithModel(base64Data, model, onePass) {
       let lastErr = null;
       let attempts = 0;
-      let maxAttempts = Math.max(2, apiKeys.length * 2);
+      let maxAttempts = onePass ? Math.max(1, apiKeys.length) : Math.max(2, apiKeys.length * 2);
 
       while (attempts < maxAttempts) {
         if (apiKeys.length > 1 && isDead(apiKeys[currentKeyIdx])) rotateKey();
@@ -1175,11 +1176,40 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           if (err.status && key) markKey(key, classifyErr(err), friendlyError(err));
           log(`Key #${currentKeyIdx + 1}: ${friendlyError(err)}${apiKeys.length > 1 ? ' → đổi key' : ' → thử lại'}`, 'warn');
           rotateKey();
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, classifyErr(err) === 'quota' ? 300 : 2000));
           attempts++;
         }
       }
-      throw new Error(`mọi API key đều lỗi (${friendlyError(lastErr)})`);
+      const e = new Error(`mọi API key đều lỗi (${friendlyError(lastErr)})`);
+      e.status = lastErr && lastErr.status; e.shortReason = friendlyError(lastErr);
+      e.fallback = [429, 503, 404].includes(e.status) || classifyErr(lastErr) === 'quota';
+      throw e;
+    }
+
+    // --- Tự động chuyển model: 2.5 → cao dần khi model hiện tại hết lượt trên mọi key ---
+    let autoLevel = 0;
+    function autoChain() {
+      const names = [...$('selectModel').options].map(o => o.value).filter(v => /^gemini-\d+(?:\.\d+)?-(flash|pro)$/.test(v));
+      const list = [...new Set(names)].map(n => ({ n, v: parseFloat(n.match(/gemini-(\d+(?:\.\d+)?)/)[1]), t: /pro$/.test(n) ? 2 : 1 }))
+        .filter(x => x.v >= 2.5).sort((a, b) => a.v - b.v || a.t - b.t).map(x => x.n);
+      return list.length ? list : ['gemini-2.5-flash', 'gemini-2.5-pro'];
+    }
+    function resetQuotaFlags() { Object.keys(keyStatus).forEach(k => { if (keyStatus[k].state === 'quota') delete keyStatus[k]; }); renderKeyChips(); }
+    async function callGeminiSinglePageWithRetry(base64Data, modelSel) {
+      if (modelSel !== 'auto') return callGeminiWithModel(base64Data, modelSel, false);
+      const chain = autoChain(); let lastErr = null;
+      for (let i = Math.min(autoLevel, chain.length - 1); i < chain.length; i++) {
+        try { return await callGeminiWithModel(base64Data, chain[i], true); }
+        catch (err) {
+          lastErr = err;
+          if (err.fallback && i < chain.length - 1) {
+            log(`${chain[i]}: ${err.shortReason} → chuyển sang ${chain[i + 1]}`, 'warn');
+            autoLevel = i + 1; resetQuotaFlags(); continue;
+          }
+          throw err;
+        }
+      }
+      throw lastErr;
     }
 
     // --- 5. BỘ CHUYỂN LaTeX -> WORD EQUATION (OMML) & DỰNG DOCX ---
