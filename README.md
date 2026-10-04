@@ -1,1 +1,0 @@
-# MathPix_Lam

@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gemini Toán OCR Pro - Sạch Rác & Chuẩn Equation DOCX</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- JSZip: tự dựng file .docx thật (Word Equation / OMML) & FileSaver -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+
+  <!-- FIREBASE JS SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    .console-box {
+      font-family: 'Consolas', 'Fira Code', monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .console-box::-webkit-scrollbar { width: 6px; }
+    .console-box::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .drag-active { border-color: #3b82f6 !important; background-color: rgba(30, 58, 138, 0.25) !important; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col p-3 md:p-6 font-sans antialiased">
+  <div id="toastBox" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-xs"></div>
+
+  <div class="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
+    
+    <!-- HEADER -->
+    <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-4 shadow-xl">
+      <div class="flex items-center justify-between gap-3">
+        <div id="authGuest" class="flex items-center gap-2">
+          <button onclick="openAuth('login')" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition">🔑 Đăng nhập</button>
+          <button onclick="openAuth('register')" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">📝 Đăng ký</button>
+        </div>
+        <div id="authUser" class="items-center gap-2" style="display:none">
+          <span class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span><b id="userName" class="font-semibold"></b><span id="userRole" class="text-[10px] text-amber-300"></span>
+          </span>
+          <button onclick="logout()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">Đăng xuất</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
+        <div class="flex items-center gap-3.5">
+        <div class="h-11 w-11 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-400 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-500/20">
+          ∑
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg md:text-xl text-white">Gemini Toán OCR Pro</h1>
+            <span class="px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">Clean Edition</span>
+          </div>
+          <p class="text-xs font-semibold text-amber-300/90 mt-0.5 flex items-center gap-1.5"><span>👨‍🏫</span>Thầy: Đoàn Văn Lãm - ĐT: 0907291079</p>
+        </div>
+      </div>
+        <div id="modelBox" class="flex items-center justify-center gap-3">
+        <div class="flex flex-col items-center">
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Mô hình AI:</label>
+          <select id="selectModel" class="bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-xl px-3 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            <option value="gemini-flash-latest">gemini-flash-latest</option>
+            <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+          </select>
+        </div>
+      </div>
+        <div class="hidden md:block"></div>
+      </div>
+    </header>
+
+    <!-- MÀN HÌNH KHÓA (chưa đăng nhập) -->
+    <div id="lockScreen" class="flex flex-col items-center justify-center text-center gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-10 shadow-xl">
+      <div class="h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center text-2xl">🔒</div>
+      <div>
+        <h2 class="text-base font-bold text-white">Vui lòng đăng nhập để sử dụng</h2>
+        <p class="text-xs text-slate-400 mt-1">Tài khoản mới đăng ký cần được quản trị viên phê duyệt trước khi sử dụng.</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="openAuth('login')" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition">🔑 Đăng nhập</button>
+        <button onclick="openAuth('register')" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">📝 Đăng ký</button>
+      </div>
+    </div>
+
+    <div id="appBody" class="flex-col gap-4" style="display:none">
+
+    <!-- 1. KHU VỰC NHẬP API KEYS TRỰC TIẾP -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <label class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          <span>🔑</span> Danh Sách Gemini API Keys:
+          <span id="keyCountText" class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded text-[11px]">0 keys</span>
+        </label>
+        <button onclick="saveKeysDirectly()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-1.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow">
+          <span>💾</span> Lưu & Đồng Bộ Cloud
+        </button>
+      </div>
+      <textarea id="directKeyInput" rows="2" placeholder="Dán API Key vào đây (mỗi dòng một key)..." class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"></textarea>
+    </section>
+
+    <!-- 2. TÙY CHỌN 3 ĐỊNH DẠNG CÔNG THỨC TOÁN -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl flex flex-col gap-3">
+      <label class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+        <span>📐</span> Chọn định dạng công thức trong file Word (.docx):
+      </label>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        
+        <label class="cursor-pointer border border-slate-800 bg-slate-950/80 hover:bg-slate-800/60 rounded-xl p-3 flex items-start gap-3 transition group has-[:checked]:border-blue-500 has-[:checked]:bg-blue-950/30 has-[:checked]:ring-1 has-[:checked]:ring-blue-500/50">
+          <input type="radio" name="math_format" value="latex" class="mt-1 text-blue-600 focus:ring-0 bg-slate-900 border-slate-700" />
+          <div>
+            <div class="font-bold text-sm text-slate-200">LaTeX ($...$)</div>
+            <p class="text-xs text-slate-400 mt-1">Giữ nguyên $...$, thích hợp cho soạn thảo TeX hoặc dùng VBA/Add-in chuyển sau.</p>
+          </div>
+        </label>
+
+        <label class="cursor-pointer border border-slate-800 bg-slate-950/80 hover:bg-slate-800/60 rounded-xl p-3 flex items-start gap-3 transition group has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-950/30 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500/50">
+          <input type="radio" name="math_format" value="equation" checked class="mt-1 text-indigo-600 focus:ring-0 bg-slate-900 border-slate-700" />
+          <div>
+            <div class="font-bold text-sm text-slate-200">Word Equation (OMML)</div>
+            <p class="text-xs text-slate-400 mt-1">Công thức Word Equation thật (OMML), mở Word lên là sửa trực tiếp được. Khuyên dùng.</p>
+          </div>
+        </label>
+
+        <label class="cursor-pointer border border-slate-800 bg-slate-950/80 hover:bg-slate-800/60 rounded-xl p-3 flex items-start gap-3 transition group has-[:checked]:border-cyan-500 has-[:checked]:bg-cyan-950/30 has-[:checked]:ring-1 has-[:checked]:ring-cyan-500/50">
+          <input type="radio" name="math_format" value="mathtype" class="mt-1 text-cyan-600 focus:ring-0 bg-slate-900 border-slate-700" />
+          <div>
+            <div class="font-bold text-sm text-slate-200">MathType</div>
+            <p class="text-xs text-slate-400 mt-1">Xuất Equation, rồi trong Word bấm thẻ MathType → Convert Equations để đổi sang MathType.</p>
+          </div>
+        </label>
+
+      </div>
+    </section>
+
+    <!-- 3. KHU VỰC TẢI LÊN FILE / KÉO THẢ / DÁN ẢNH -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+      <div id="dropZone" onclick="triggerFileInput()" class="md:col-span-2 min-h-[210px] border-2 border-dashed border-slate-700 hover:border-blue-500 bg-slate-950/60 hover:bg-slate-900/50 rounded-2xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group">
+        <input type="file" id="hiddenFileInput" accept=".pdf, image/*" class="hidden" onchange="handleFileSelect(event)" />
+        <div class="h-10 w-10 rounded-full bg-slate-800 group-hover:bg-blue-600/20 text-slate-300 group-hover:text-blue-400 flex items-center justify-center text-lg transition">
+          📂
+        </div>
+        <p class="text-xs font-semibold text-slate-200">Kéo thả file PDF hoặc Ảnh đề toán vào đây</p>
+        <p class="text-[11px] text-slate-500">Hoặc click để chọn tệp từ máy</p>
+      </div>
+      <aside class="md:col-span-1 flex flex-col gap-3 bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="h-8 w-8 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-sm">🚫</span>
+            <div>
+              <p class="text-xs font-bold text-slate-200 leading-tight">Nội dung bỏ qua</p>
+              <p class="text-[10px] text-slate-500">Mỗi dòng một nội dung</p>
+            </div>
+          </div>
+          <span id="ignoreCount" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">0 mục</span>
+        </div>
+        <textarea id="ignoreInput" rows="5" placeholder="VD:&#10;Website: toanthaylam.vn&#10;Hotline 0907291079&#10;Sưu tầm &amp; biên soạn" class="flex-1 min-h-[96px] w-full resize-none bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-600 leading-relaxed focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500/50"></textarea>
+        <div class="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
+          <div>
+            <p class="text-xs font-semibold text-slate-200 leading-tight">Chuyển cả đầu trang &amp; chân trang</p>
+            <p class="text-[10px] text-slate-500 mt-0.5">Tắt để bỏ header, footer, số trang</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox" id="optHeaderFooter" class="sr-only peer" checked />
+            <div class="w-10 h-6 bg-slate-700 rounded-full transition peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/50 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-all peer-checked:after:translate-x-4"></div>
+          </label>
+        </div>
+      </aside>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button onclick="triggerFileInput()" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-xs transition flex items-center gap-2 shadow">
+          <span>📁</span> Chọn File
+        </button>
+
+        <button onclick="handleClipboardPasteManual()" class="bg-purple-600 hover:bg-purple-500 text-white font-medium px-4 py-2 rounded-xl text-xs transition flex items-center gap-2 shadow">
+          <span>📋</span> Dán Ảnh (Ctrl+V)
+        </button>
+
+        <div id="fileInfoBadge" class="flex-1 min-w-[200px] truncate text-xs text-slate-400 italic px-2">
+          Chưa chọn file (Nhấn Ctrl+V để dán ảnh bất cứ lúc nào)
+        </div>
+
+        <button id="btnRun" onclick="startBatchOCR()" class="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95">
+          <span>🚀</span> Bắt Đầu OCR & Tải DOCX
+        </button>
+        <button id="btnStop" onclick="stopOCR()" class="hidden bg-rose-600/90 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs transition shadow flex items-center gap-1.5 active:scale-95">
+          <span>⏹</span> Dừng & xuất phần đã xong
+        </button>
+      </div>
+
+      <!-- Phạm vi trang -->
+      <div id="rangeRow" class="hidden flex flex-wrap items-center gap-2.5 text-xs bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2">
+        <span class="text-slate-300 font-semibold">📑 Phạm vi trang</span>
+        <label class="flex items-center gap-1.5 text-slate-400">Từ <input id="pageFrom" type="number" min="1" value="1" class="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" /></label>
+        <label class="flex items-center gap-1.5 text-slate-400">đến <input id="pageTo" type="number" min="1" value="1" class="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" /></label>
+        <span id="rangeTotal" class="text-slate-500"></span>
+        <button onclick="resetRange()" class="ml-auto text-blue-400 hover:text-blue-300 font-medium">Chọn tất cả</button>
+      </div>
+
+      <!-- Preview ảnh/PDF -->
+      <div id="previewContainer" class="hidden border border-slate-800 rounded-xl p-3 bg-slate-950/80 flex items-center gap-4">
+        <img id="imagePreview" class="max-h-20 max-w-xs object-contain rounded-lg border border-slate-800 shadow" src="" alt="Preview" />
+        <div class="text-xs text-slate-400 space-y-1">
+          <p id="previewName" class="font-medium text-slate-200 truncate"></p>
+          <p id="previewPages" class="text-emerald-400 font-semibold"></p>
+          <button onclick="clearSelectedFile()" class="text-rose-400 hover:text-rose-300 font-medium">✕ Hủy chọn file này</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. TIẾN TRÌNH -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-2.5">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span id="runDot" class="h-2 w-2 rounded-full bg-slate-600"></span>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Tiến trình</span>
+          <span id="progressText" class="text-[11px] text-slate-500">Chưa chạy</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-[11px]">
+          <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">✓ <b id="chipDone">0</b> xong</span>
+          <span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">✕ <b id="chipFail">0</b> lỗi</span>
+          <button onclick="clearLog()" class="ml-1 text-slate-500 hover:text-slate-300 transition">Xóa log</button>
+        </div>
+      </div>
+      <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden"><div id="progressBar" class="h-full w-0 bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-300"></div></div>
+      <div id="resultBanner" class="hidden"></div>
+      <div id="consoleLog" class="max-h-40 min-h-[88px] overflow-y-auto text-[11px] leading-5 bg-slate-950 p-2.5 rounded-xl border border-slate-900 space-y-0.5">
+        <div class="text-slate-500">Sẵn sàng. Hãy nạp file để bắt đầu.</div>
+      </div>
+    </section>
+    </div>
+  </div>
+  <footer class="text-center pt-3 pb-1">
+    <button onclick="openAdmin()" class="text-[10px] text-slate-600 hover:text-slate-400 transition">⚙ Quản trị</button>
+  </footer>
+
+  <script>
+    // --- 1. FIREBASE CONFIG ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyDq2DxzfurfZpDQq6d49QuQVTbJJpdJAKI",
+      authDomain: "doanvanlam-95238.firebaseapp.com",
+      databaseURL: "https://doanvanlam-95238-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "doanvanlam-95238",
+      storageBucket: "doanvanlam-95238.firebasestorage.app",
+      messagingSenderId: "359527127604",
+      appId: "1:359527127604:web:754b1b472ebd46ba0f8861",
+      measurementId: "G-L4SFFLZV5P"
+    };
+
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    } catch (e) {}
+
+    // --- 2. SYSTEM INSTRUCTIONS LOẠI BỎ MỌI LỜI CHÀO / GIẢI THÍCH ---
+    const SYSTEM_PROMPT = `Bạn là hệ thống OCR chuyên xử lý tài liệu Toán học và tài liệu giáo dục.
+Nhiệm vụ: Đọc TOÀN BỘ nội dung của trang tài liệu này và xuất kết quả chính xác để đưa vào file Word.
+
+QUY TẮC CỰC KỲ QUAN TRỌNG:
+1. KHÔNG viết bất kỳ lời chào, lời giải thích, phần mở đầu hay kết thúc nào (ví dụ: "Dưới đây là...", "Đây là kết quả...").
+2. KHÔNG bọc toàn bộ kết quả trong khối code block markdown (\`\`\`markdown hoặc \`\`\`).
+3. Bắt đầu ngay lập tức từ dòng chữ đầu tiên của tài liệu.
+4. Mọi công thức Toán PHẢI được nhận dạng thành LaTeX bọc trong dấu $. Ví dụ: $x^2+2x+1=0$, $\\frac{a+b}{c}$, $\\sqrt{x^2+1}$.
+5. Bảng biểu xuất dạng bảng Markdown:
+| Cột 1 | Cột 2 |
+|---|---|
+| Dữ liệu 1 | Dữ liệu 2 |
+6. Nếu có hình vẽ hình học hoặc đồ thị, đánh dấu tọa độ: [IMAGE: ymin, xmin, ymax, xmax]`;
+
+    let apiKeys = [];
+    let currentKeyIdx = 0;
+    let selectedFileBlob = null;
+    let isPdfFile = false;
+    let pdfDocGlobal = null;
+    let imageBase64Global = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+            setupGlobalPaste();
+      setupDragAndDrop();
+    });
+
+    const $ = (id) => document.getElementById(id);
+    let stopRequested = false;
+
+    const LOG_STYLE = {
+      info: ['text-slate-300', 'bg-slate-500'],
+      success: ['text-emerald-400', 'bg-emerald-400'],
+      warn: ['text-amber-400', 'bg-amber-400'],
+      error: ['text-rose-400', 'bg-rose-400']
+    };
+    function log(msg, level) {
+      const raw = String(msg);
+      if (!level) level = /❌|thất bại/i.test(raw) ? 'error' : /⚠️/.test(raw) ? 'warn' : /✅|🎉|hoàn tất|hoàn thành/i.test(raw) ? 'success' : 'info';
+      const text = raw.replace(/^[\s\-]+|[\s\-]+$/g, '').replace(/^(❌|⚠️|✅|🎉|ℹ️|☁️|->)\s*/, '');
+      if (!text) return;
+      const [tc, dc] = LOG_STYLE[level];
+      const row = document.createElement('div');
+      row.className = 'flex items-start gap-2';
+      const t = document.createElement('span');
+      t.className = 'text-slate-600 tabular-nums shrink-0';
+      t.textContent = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+      const d = document.createElement('span');
+      d.className = `mt-[7px] h-1.5 w-1.5 rounded-full shrink-0 ${dc}`;
+      const m = document.createElement('span');
+      m.className = `${tc} break-words min-w-0`;
+      m.textContent = text;
+      row.append(t, d, m);
+      const box = $('consoleLog');
+      box.appendChild(row);
+      box.scrollTop = box.scrollHeight;
+    }
+    function clearLog() { $('consoleLog').innerHTML = ''; }
+
+    function toast(msg, type) {
+      type = type || 'warn';
+      const cls = type === 'error' ? 'bg-rose-950/90 border-rose-700/60 text-rose-200'
+        : type === 'success' ? 'bg-emerald-950/90 border-emerald-700/60 text-emerald-200'
+        : 'bg-amber-950/90 border-amber-700/60 text-amber-200';
+      const d = document.createElement('div');
+      d.className = `pointer-events-auto text-xs px-3.5 py-2.5 rounded-xl border shadow-xl transition-opacity duration-300 ${cls}`;
+      d.textContent = msg;
+      $('toastBox').appendChild(d);
+      setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 300); }, 3500);
+    }
+
+    function setProgress(done, total, label) {
+      $('progressBar').style.width = `${total ? Math.round(done / total * 100) : 0}%`;
+      $('progressText').textContent = label || `${done}/${total} trang`;
+      $('chipDone').textContent = done;
+    }
+
+    function showBanner(type, text, btnLabel, btnFn) {
+      const cls = type === 'error' ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+        : type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+        : 'bg-amber-500/10 border-amber-500/30 text-amber-300';
+      const b = $('resultBanner');
+      b.className = `flex flex-wrap items-center gap-2 text-xs rounded-xl border px-3 py-2 ${cls}`;
+      b.innerHTML = '';
+      const sp = document.createElement('span');
+      sp.className = 'flex-1 min-w-[180px]';
+      sp.textContent = text;
+      b.appendChild(sp);
+      if (btnLabel) {
+        const bt = document.createElement('button');
+        bt.className = 'px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 font-semibold transition';
+        bt.textContent = btnLabel;
+        bt.onclick = btnFn;
+        b.appendChild(bt);
+      }
+    }
+
+    function friendlyError(err) {
+      const m = (err && err.message) || String(err), st = err && err.status;
+      if (st === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED|exhaust/i.test(m)) return 'API hết hạn mức';
+      if (st === 401 || st === 403 || /API key not valid|API_KEY_INVALID|expired/i.test(m)) return 'API key không hợp lệ hoặc bị khóa';
+      if (st === 404) return 'Model không tồn tại';
+      if (st === 503 || /overload|unavailable/i.test(m)) return 'Máy chủ Gemini quá tải';
+      if (/Failed to fetch|NetworkError/i.test(m)) return 'Mất kết nối mạng';
+      return m.length > 70 ? m.slice(0, 70) + '…' : m;
+    }
+
+    function stopOCR() { stopRequested = true; log('Sẽ dừng sau trang hiện tại và xuất phần đã xong…', 'warn'); }
+    function resetRange() { if (pdfDocGlobal) { $('pageFrom').value = 1; $('pageTo').value = pdfDocGlobal.numPages; } }
+
+    function loadKeysDual() {
+      const local = localStorage.getItem('gemini_ocr_keys');
+      if (local) {
+        try {
+          apiKeys = JSON.parse(local);
+          updateKeyUI();
+          if (apiKeys.length > 0) fetchOnlineModels();
+        } catch (e) {}
+      }
+
+      if (db) {
+        db.ref('ocr_config/api_keys').once('value', (snapshot) => {
+          const val = snapshot.val();
+          if (val && Array.isArray(val) && val.length > 0) {
+            apiKeys = val;
+            localStorage.setItem('gemini_ocr_keys', JSON.stringify(apiKeys));
+            updateKeyUI();
+            log(`☁️ Đã đồng bộ ${apiKeys.length} API Keys từ Firebase Cloud.`);
+            fetchOnlineModels();
+          }
+        });
+      }
+    }
+
+    function updateKeyUI() {
+      document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
+      document.getElementById('directKeyInput').value = apiKeys.join('\n');
+    }
+
+    function saveKeysDirectly() {
+      const raw = document.getElementById('directKeyInput').value.trim();
+      apiKeys = raw.split(/[\n,]+/).map(k => k.trim()).filter(k => k.length > 0);
+      currentKeyIdx = 0;
+      localStorage.setItem('gemini_ocr_keys', JSON.stringify(apiKeys));
+      document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
+
+      if (db) {
+        db.ref('ocr_config/api_keys').set(apiKeys)
+          .then(() => log(`☁️ Đã lưu ${apiKeys.length} API Keys lên Firebase.`))
+          .catch((e) => log(`⚠️ Lỗi lưu Firebase: ${e.message}`));
+      } else {
+        log(`Đã lưu ${apiKeys.length} API Keys vào trình duyệt.`);
+      }
+      fetchOnlineModels();
+    }
+
+    function getActiveKey() {
+      if (apiKeys.length === 0) {
+        const raw = document.getElementById('directKeyInput').value.trim();
+        if (raw) {
+          apiKeys = raw.split(/[\n,]+/).map(k => k.trim()).filter(k => k.length > 0);
+          updateKeyUI();
+        }
+      }
+      if (apiKeys.length === 0) return null;
+      return apiKeys[currentKeyIdx];
+    }
+
+    function rotateKey() {
+      if (apiKeys.length > 1) {
+        currentKeyIdx = (currentKeyIdx + 1) % apiKeys.length;
+        /* đã log ở nơi gọi */
+      }
+    }
+
+    async function fetchOnlineModels() {
+      const key = getActiveKey();
+      if (!key) return;
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const valid = (data.models || [])
+          .map(m => m.name.replace('models/', ''))
+          .filter(n => n.includes('flash') || n.includes('pro'));
+
+        if (valid.length > 0) {
+          const select = document.getElementById('selectModel');
+          const cur = select.value;
+          select.innerHTML = '';
+          valid.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            select.appendChild(opt);
+          });
+          if (valid.includes(cur)) select.value = cur;
+          log(`Đã nạp ${valid.length} mô hình tự động từ Google.`);
+        }
+      } catch (e) {}
+    }
+
+    function triggerFileInput() { document.getElementById('hiddenFileInput').click(); }
+
+    function setupDragAndDrop() {
+      const dropZone = document.getElementById('dropZone');
+      ['dragenter', 'dragover'].forEach(name => {
+        dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); }, false);
+      });
+      ['dragleave', 'drop'].forEach(name => {
+        dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.remove('drag-active'); }, false);
+      });
+      dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) handleFileObject(files[0]);
+      }, false);
+    }
+
+    function setupGlobalPaste() {
+      window.addEventListener('paste', async (e) => {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (let item of items) {
+          if (item.type.includes('image')) {
+            const blob = item.getAsFile();
+            processImageFile(blob, 'clipboard_math_image.png');
+            log('Đã dán ảnh từ Clipboard thành công (Ctrl+V)!');
+            break;
+          }
+        }
+      });
+    }
+
+    async function handleClipboardPasteManual() {
+      try {
+        const items = await navigator.clipboard.read();
+        for (let item of items) {
+          for (let type of item.types) {
+            if (type.startsWith('image/')) {
+              const blob = await item.getType(type);
+              processImageFile(blob, 'clipboard_math_image.png');
+              log('Đã nạp ảnh từ Clipboard.');
+              return;
+            }
+          }
+        }
+        toast('Clipboard không chứa ảnh!');
+      } catch (e) {
+        toast('Vui lòng nhấn tổ hợp phím Ctrl + V trực tiếp trên bàn phím.');
+      }
+    }
+
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) handleFileObject(file);
+    }
+
+    async function handleFileObject(file) {
+      if (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')) {
+        isPdfFile = true;
+        selectedFileBlob = file;
+        const buffer = await file.arrayBuffer();
+        pdfDocGlobal = await pdfjsLib.getDocument(new Uint8Array(buffer)).promise;
+
+        document.getElementById('fileInfoBadge').textContent = `📄 Đã chọn PDF: ${file.name}`;
+        document.getElementById('fileInfoBadge').className = 'flex-1 truncate text-xs text-emerald-400 font-medium px-2';
+        document.getElementById('previewContainer').classList.remove('hidden');
+        document.getElementById('imagePreview').classList.add('hidden');
+        document.getElementById('previewName').textContent = file.name;
+        document.getElementById('previewPages').textContent = `Số trang: ${pdfDocGlobal.numPages} trang`;
+        const nPg = pdfDocGlobal.numPages;
+        $('rangeRow').classList.remove('hidden');
+        $('pageFrom').max = $('pageTo').max = nPg;
+        $('pageFrom').value = 1; $('pageTo').value = nPg;
+        $('rangeTotal').textContent = `/ tổng ${nPg} trang`;
+        log(`Đã nạp file PDF (${nPg} trang).`);
+      } else {
+        processImageFile(file, file.name);
+      }
+    }
+
+    function processImageFile(blob, name) {
+      isPdfFile = false;
+      pdfDocGlobal = null;
+      selectedFileBlob = blob;
+      $('rangeRow').classList.add('hidden');
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        imageBase64Global = e.target.result.split(',')[1];
+        document.getElementById('fileInfoBadge').textContent = `🖼️ Đã chọn Ảnh: ${name}`;
+        document.getElementById('fileInfoBadge').className = 'flex-1 truncate text-xs text-emerald-400 font-medium px-2';
+        
+        const previewContainer = document.getElementById('previewContainer');
+        const imgEl = document.getElementById('imagePreview');
+        imgEl.src = e.target.result;
+        imgEl.classList.remove('hidden');
+        previewContainer.classList.remove('hidden');
+        document.getElementById('previewName').textContent = name;
+        document.getElementById('previewPages').textContent = `${(blob.size / 1024).toFixed(1)} KB`;
+      };
+      reader.readAsDataURL(blob);
+    }
+
+    function clearSelectedFile() {
+      $('rangeRow').classList.add('hidden');
+      selectedFileBlob = null;
+      pdfDocGlobal = null;
+      imageBase64Global = null;
+      document.getElementById('hiddenFileInput').value = '';
+      document.getElementById('previewContainer').classList.add('hidden');
+      document.getElementById('fileInfoBadge').textContent = 'Chưa chọn file (Nhấn Ctrl+V để dán ảnh)';
+      document.getElementById('fileInfoBadge').className = 'flex-1 truncate text-xs text-slate-400 italic px-2';
+    }
+
+    // --- 3. BỘ LỌC DỌN RÁC (CLEANER) ---
+    function cleanAIText(rawText) {
+      if (!rawText) return "";
+      
+      // Loại bỏ khối bọc ```markdown hoặc ```
+      let cleaned = rawText.replace(/^```[a-zA-Z]*\n?/gm, '').replace(/```$/gm, '');
+      cleaned = cleaned.replace(/\\\[([\s\S]*?)\\\]/g, (m, a) => '$$' + a + '$$').replace(/\\\(([\s\S]*?)\\\)/g, (m, a) => '$' + a + '$');
+      
+      // Lọc các dòng mở đầu rác của AI
+      const lines = cleaned.split('\n');
+      const filtered = [];
+      let started = false;
+
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (!started) {
+          // Bỏ qua các dòng rác thường gặp
+          if (
+            trimmed.startsWith("Dưới đây") ||
+            trimmed.startsWith("Đây là") ||
+            trimmed.startsWith("Dưới đây là") ||
+            trimmed.startsWith("Chắc chắn rồi") ||
+            trimmed.startsWith("Sau đây") ||
+            trimmed.length === 0
+          ) {
+            continue;
+          }
+          started = true;
+        }
+        filtered.push(line);
+      }
+      return filtered.join('\n').trim();
+    }
+
+    // ===== TÀI KHOẢN: ĐĂNG KÝ / ĐĂNG NHẬP / QUẢN TRỊ =====
+    const ADMIN_USER = 'dvlam';
+    const DEFAULT_ADMIN = { salt: 'a1f3c9e27b4d6081', hash: '85345fdb8524c1d58e291362f4685459d4288a7fe79664c9af58c5aa4ac83d9d' };
+    const INP = 'w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50';
+    const BTN = 'w-full px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-500 hover:from-blue-500 hover:to-indigo-400 text-white text-xs font-bold shadow transition disabled:opacity-50';
+    let session = null, keysLoaded = false, pendingAdmin = false, userListRef = null;
+
+    async function sha256(t) {
+      const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+      return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+    const hashPw = (salt, pw) => sha256(salt + ':' + pw);
+    const newSalt = () => [...crypto.getRandomValues(new Uint8Array(8))].map(x => x.toString(16).padStart(2, '0')).join('');
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    function closeModal() {
+      if (userListRef) { userListRef.off(); userListRef = null; }
+      const m = $('modalRoot'); if (m) m.remove();
+    }
+    function openModal(title, body, wide) {
+      closeModal();
+      const d = document.createElement('div');
+      d.id = 'modalRoot';
+      d.className = 'fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm';
+      d.innerHTML = `<div class="w-full ${wide ? 'max-w-2xl' : 'max-w-sm'} bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 max-h-[90vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h2 class="text-sm font-bold text-white">${title}</h2><button onclick="closeModal()" class="text-slate-400 hover:text-white text-lg leading-none">✕</button></div>${body}</div>`;
+      d.addEventListener('mousedown', (e) => { if (e.target === d) closeModal(); });
+      document.body.appendChild(d);
+      const f = d.querySelector('input'); if (f) f.focus();
+    }
+
+    function openAuth(mode) {
+      const reg = mode === 'register';
+      const tab = (m, label) => `<button onclick="openAuth('${m}')" class="flex-1 py-1.5 rounded-lg transition ${mode === m ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">${label}</button>`;
+      openModal(reg ? 'Đăng ký tài khoản' : 'Đăng nhập',
+        `<div class="flex gap-1 p-1 bg-slate-800 rounded-xl mb-4 text-xs font-semibold">${tab('login', 'Đăng nhập')}${tab('register', 'Đăng ký')}</div>
+        <div class="flex flex-col gap-3">
+          ${reg ? `<input id="auName" class="${INP}" placeholder="Họ và tên" />` : ''}
+          <input id="auUser" class="${INP}" placeholder="Tên đăng nhập" autocomplete="username" />
+          <input id="auPass" type="password" class="${INP}" placeholder="Mật khẩu" autocomplete="${reg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')submitAuth('${mode}')" />
+          ${reg ? `<input id="auPass2" type="password" class="${INP}" placeholder="Nhập lại mật khẩu" onkeydown="if(event.key==='Enter')submitAuth('register')" />` : ''}
+          <p id="auMsg" class="text-[11px] text-rose-400 min-h-[16px]"></p>
+          <button id="auBtn" onclick="submitAuth('${mode}')" class="${BTN}">${reg ? 'Gửi đăng ký' : 'Đăng nhập'}</button>
+          ${reg ? '<p class="text-[10px] text-slate-500 text-center">Tên đăng nhập: 3–20 ký tự (chữ thường, số, _). Cần quản trị viên duyệt mới dùng được.</p>' : ''}
+        </div>`);
+    }
+
+    async function submitAuth(mode) {
+      const msg = (t) => { const m = $('auMsg'); if (m) m.textContent = t; };
+      if (!db || !(window.crypto && crypto.subtle)) { msg('Không kết nối được máy chủ tài khoản.'); return; }
+      const u = $('auUser').value.trim().toLowerCase(), pw = $('auPass').value;
+      if (!/^[a-z0-9_]{3,20}$/.test(u)) { msg('Tên đăng nhập 3–20 ký tự: chữ thường, số, dấu _.'); return; }
+      if (pw.length < 6) { msg('Mật khẩu tối thiểu 6 ký tự.'); return; }
+      $('auBtn').disabled = true;
+      try {
+        if (mode === 'register') {
+          if (u === ADMIN_USER) { msg('Tên đăng nhập này đã được dành riêng.'); return; }
+          if (pw !== $('auPass2').value) { msg('Mật khẩu nhập lại không khớp.'); return; }
+          const ref = db.ref('ocr_users/' + u);
+          if ((await ref.once('value')).exists()) { msg('Tên đăng nhập đã tồn tại.'); return; }
+          const salt = newSalt();
+          await ref.set({ name: $('auName').value.trim() || u, salt, hash: await hashPw(salt, pw), status: 'pending', createdAt: Date.now() });
+          closeModal(); toast('Đã gửi đăng ký. Vui lòng chờ quản trị viên duyệt.', 'success');
+          return;
+        }
+        const isAdmin = u === ADMIN_USER;
+        const rec = isAdmin ? ((await db.ref('ocr_admin').once('value')).val() || DEFAULT_ADMIN) : (await db.ref('ocr_users/' + u).once('value')).val();
+        if (!rec || (await hashPw(rec.salt, pw)) !== rec.hash) { msg('Sai tên đăng nhập hoặc mật khẩu.'); return; }
+        if (!isAdmin && rec.status !== 'approved') { msg(rec.status === 'pending' ? 'Tài khoản đang chờ quản trị viên duyệt.' : 'Tài khoản đã bị khóa hoặc bị từ chối.'); return; }
+        session = { user: u, role: isAdmin ? 'admin' : 'user', name: isAdmin ? 'Quản trị viên' : (rec.name || u) };
+        if (!isAdmin) { try { localStorage.setItem('ocr_session', JSON.stringify({ user: u })); } catch (e) {} }
+        closeModal(); applyAuthState(); toast(`Xin chào, ${session.name}!`, 'success');
+        if (pendingAdmin && isAdmin) { pendingAdmin = false; openAdmin(); }
+      } catch (e) { msg('Lỗi kết nối: ' + e.message); }
+      finally { const b = $('auBtn'); if (b) b.disabled = false; }
+    }
+
+    function applyAuthState() {
+      const on = !!session;
+      $('appBody').style.display = on ? 'flex' : 'none';
+      $('lockScreen').style.display = on ? 'none' : 'flex';
+      $('modelBox').style.display = on ? 'flex' : 'none';
+      $('authGuest').style.display = on ? 'none' : 'flex';
+      $('authUser').style.display = on ? 'flex' : 'none';
+      if (on) {
+        $('userName').textContent = session.name;
+        $('userRole').textContent = session.role === 'admin' ? '· Quản trị' : '';
+        if (!keysLoaded) { keysLoaded = true; loadKeysDual(); }
+      }
+    }
+    function logout() {
+      session = null; try { localStorage.removeItem('ocr_session'); } catch (e) {}
+      applyAuthState(); toast('Đã đăng xuất.', 'success');
+    }
+    async function restoreSession() {
+      try {
+        const s = JSON.parse(localStorage.getItem('ocr_session') || 'null');
+        if (s && s.user && db) {
+          const r = (await db.ref('ocr_users/' + s.user).once('value')).val();
+          if (r && r.status === 'approved') session = { user: s.user, role: 'user', name: r.name || s.user };
+        }
+      } catch (e) {}
+      applyAuthState();
+    }
+    window.addEventListener('DOMContentLoaded', restoreSession);
+
+    // --- Quản trị ---
+    function openAdmin() {
+      if (!session || session.role !== 'admin') {
+        pendingAdmin = true; openAuth('login');
+        $('auUser').value = ADMIN_USER; $('auPass').focus();
+        $('auMsg').textContent = 'Đăng nhập tài khoản quản trị để mở cài đặt.';
+        return;
+      }
+      openModal('⚙ Cài đặt quản trị', `
+        <div class="flex flex-col gap-5">
+          <section>
+            <div class="flex items-center justify-between mb-2"><h3 class="text-xs font-bold text-slate-300">Người dùng đã đăng ký</h3><span id="adCount" class="text-[10px] text-slate-500"></span></div>
+            <div id="adUsers" class="flex flex-col gap-2"></div>
+          </section>
+          <section class="border-t border-slate-800 pt-4">
+            <h3 class="text-xs font-bold text-slate-300 mb-2">Đổi mật khẩu quản trị</h3>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input id="adPw1" type="password" class="${INP}" placeholder="Mật khẩu mới" />
+              <input id="adPw2" type="password" class="${INP}" placeholder="Nhập lại" />
+              <button onclick="changeAdminPw()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0">Lưu</button>
+            </div>
+          </section>
+        </div>`, true);
+      userListRef = db.ref('ocr_users');
+      userListRef.on('value', renderUsers);
+    }
+    function renderUsers(snap) {
+      const box = $('adUsers'); if (!box) return;
+      const data = snap.val() || {};
+      const order = { pending: 0, approved: 1 };
+      const list = Object.entries(data).sort((a, b) => (order[a[1].status] ?? 2) - (order[b[1].status] ?? 2) || (b[1].createdAt || 0) - (a[1].createdAt || 0));
+      $('adCount').textContent = `${list.length} tài khoản · ${list.filter(x => x[1].status === 'pending').length} chờ duyệt`;
+      if (!list.length) { box.innerHTML = '<p class="text-xs text-slate-500 py-3 text-center">Chưa có ai đăng ký.</p>'; return; }
+      const badge = { pending: ['Chờ duyệt', 'bg-amber-500/10 text-amber-300 border-amber-500/30'], approved: ['Đã duyệt', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'] };
+      const b = (label, fn, cls) => `<button onclick="${fn}" class="px-2 py-1 rounded-lg text-[11px] font-semibold ${cls || 'bg-slate-800 hover:bg-slate-700 text-slate-200'}">${label}</button>`;
+      const ok = 'bg-emerald-600 hover:bg-emerald-500 text-white';
+      box.innerHTML = list.map(([u, r]) => {
+        const bd = badge[r.status] || ['Đã khóa', 'bg-rose-500/10 text-rose-300 border-rose-500/30'];
+        const acts = (r.status === 'pending' ? b('✓ Duyệt', `setStatus('${u}','approved')`, ok) + b('Từ chối', `setStatus('${u}','rejected')`)
+          : r.status === 'approved' ? b('Khóa', `setStatus('${u}','rejected')`) : b('Duyệt lại', `setStatus('${u}','approved')`, ok))
+          + b('🔑 Đổi MK', `togglePw('${u}')`) + b('Xóa', `delUser('${u}')`, 'bg-rose-600/80 hover:bg-rose-500 text-white');
+        return `<div class="flex flex-wrap items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2">
+          <div class="flex-1 min-w-[140px]"><p class="text-xs font-semibold text-slate-200">${esc(r.name || u)} <span class="text-slate-500 font-normal">@${u}</span></p><p class="text-[10px] text-slate-500">${r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : ''}</p></div>
+          <span class="px-2 py-0.5 rounded-full border text-[10px] ${bd[1]}">${bd[0]}</span>
+          <div class="flex flex-wrap gap-1">${acts}</div>
+          <div id="pw_${u}" class="w-full gap-2" style="display:none"><input id="pwi_${u}" type="password" class="${INP}" placeholder="Mật khẩu mới cho ${u}" /><button onclick="saveUserPw('${u}')" class="px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shrink-0">Lưu</button></div>
+        </div>`;
+      }).join('');
+    }
+    function setStatus(u, st) { db.ref('ocr_users/' + u + '/status').set(st).then(() => toast('Đã cập nhật.', 'success')).catch(e => toast(e.message, 'error')); }
+    function delUser(u) { if (confirm('Xóa tài khoản "' + u + '"?')) db.ref('ocr_users/' + u).remove().then(() => toast('Đã xóa.', 'success')); }
+    function togglePw(u) { const el = $('pw_' + u); const open = el.style.display === 'flex'; el.style.display = open ? 'none' : 'flex'; if (!open) $('pwi_' + u).focus(); }
+    async function saveUserPw(u) {
+      const v = $('pwi_' + u).value;
+      if (v.length < 6) { toast('Mật khẩu tối thiểu 6 ký tự.'); return; }
+      const salt = newSalt();
+      await db.ref('ocr_users/' + u).update({ salt, hash: await hashPw(salt, v) });
+      $('pwi_' + u).value = ''; $('pw_' + u).style.display = 'none';
+      toast('Đã đổi mật khẩu cho ' + u, 'success');
+    }
+    async function changeAdminPw() {
+      const a = $('adPw1').value, b = $('adPw2').value;
+      if (a.length < 6) { toast('Mật khẩu tối thiểu 6 ký tự.'); return; }
+      if (a !== b) { toast('Mật khẩu nhập lại không khớp.'); return; }
+      const salt = newSalt();
+      await db.ref('ocr_admin').set({ salt, hash: await hashPw(salt, a) });
+      $('adPw1').value = $('adPw2').value = '';
+      toast('Đã đổi mật khẩu quản trị.', 'success');
+    }
+
+    // --- NỘI DUNG BỎ QUA & ĐẦU/CHÂN TRANG ---
+    function getIgnoreList() { return ($('ignoreInput').value || '').split('\n').map(x => x.trim()).filter(Boolean); }
+    function buildSystemPrompt() {
+      const extra = [];
+      if (!$('optHeaderFooter').checked) extra.push('BỎ QUA hoàn toàn tiêu đề đầu trang (header), chân trang (footer) và số trang; không chép chúng vào kết quả.');
+      const ig = getIgnoreList();
+      if (ig.length) extra.push('KHÔNG chép các nội dung sau nếu xuất hiện trên trang (bỏ qua hoàn toàn):\n' + ig.map(x => '- ' + x).join('\n'));
+      return SYSTEM_PROMPT + (extra.length ? '\n' + extra.map((e, i) => `${7 + i}. ${e}`).join('\n') : '');
+    }
+    function applyIgnore(text) {
+      const ig = getIgnoreList();
+      if (!ig.length) return text;
+      const res = ig.map(x => new RegExp(x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'gi'));
+      return text.split('\n').map(l => {
+        let o = l;
+        res.forEach(r => { o = o.replace(r, ''); });
+        if (o === l) return l;
+        if (!o.replace(/[\s\-–—.,:;|*]/g, '')) return null;
+        return o.replace(/\s{2,}/g, ' ').trim();
+      }).filter(l => l !== null).join('\n');
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      const ta = $('ignoreInput'), tg = $('optHeaderFooter');
+      const upd = () => { $('ignoreCount').textContent = getIgnoreList().length + ' mục'; };
+      try {
+        ta.value = localStorage.getItem('ocr_ignore_text') || '';
+        const hf = localStorage.getItem('ocr_include_hf'); if (hf !== null) tg.checked = hf === '1';
+      } catch (e) {}
+      upd();
+      ta.addEventListener('input', () => { upd(); try { localStorage.setItem('ocr_ignore_text', ta.value); } catch (e) {} });
+      tg.addEventListener('change', () => { try { localStorage.setItem('ocr_include_hf', tg.checked ? '1' : '0'); } catch (e) {} });
+    });
+
+    // --- 4. BẮT ĐẦU CHẠY BATCH OCR (có phạm vi trang, xuất một phần khi lỗi) ---
+    async function renderPdfPage(p) {
+      const page = await pdfDocGlobal.getPage(p);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      return canvas;
+    }
+    function imageToCanvas(b64) {
+      return new Promise((res) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          c.getContext('2d').drawImage(img, 0, 0);
+          res(c);
+        };
+        img.src = `data:image/png;base64,${b64}`;
+      });
+    }
+
+    async function startBatchOCR() {
+      if (!session) { toast('Vui lòng đăng nhập để sử dụng.'); openAuth('login'); return; }
+      if (!selectedFileBlob) { toast('Vui lòng chọn file PDF hoặc dán ảnh trước.'); return; }
+      if (!getActiveKey()) { toast('Vui lòng nhập ít nhất một Gemini API Key.'); $('directKeyInput').focus(); return; }
+
+      let from = 1, to = 1;
+      if (isPdfFile && pdfDocGlobal) {
+        const n = pdfDocGlobal.numPages;
+        from = Math.min(Math.max(1, parseInt($('pageFrom').value) || 1), n);
+        to = Math.min(Math.max(1, parseInt($('pageTo').value) || n), n);
+        if (from > to) { toast('"Từ trang" phải nhỏ hơn hoặc bằng "đến trang".'); return; }
+        $('pageFrom').value = from; $('pageTo').value = to;
+      }
+      const total = isPdfFile ? to - from + 1 : 1;
+      const model = $('selectModel').value;
+      const fmt = document.querySelector('input[name="math_format"]:checked').value;
+      const pagesData = [];
+      let stoppedAt = null, reason = '';
+
+      const btnRun = $('btnRun');
+      btnRun.disabled = true; btnRun.classList.add('opacity-50', 'cursor-not-allowed');
+      $('btnStop').classList.remove('hidden');
+      $('runDot').className = 'h-2 w-2 rounded-full bg-emerald-400 animate-pulse';
+      $('resultBanner').className = 'hidden';
+      $('chipFail').textContent = '0';
+      stopRequested = false;
+      setProgress(0, total);
+      log(isPdfFile ? `Bắt đầu OCR trang ${from}–${to} (${total} trang) · ${model}` : `Bắt đầu OCR ảnh · ${model}`);
+
+      try {
+        for (let i = 0; i < total; i++) {
+          const p = from + i;
+          if (stopRequested) { stoppedAt = p; reason = 'bạn đã dừng'; break; }
+          try {
+            let canvas, b64;
+            if (isPdfFile) { canvas = await renderPdfPage(p); b64 = canvas.toDataURL('image/png').split(',')[1]; }
+            else { b64 = imageBase64Global; canvas = await imageToCanvas(b64); }
+            setProgress(i, total, `Trang ${p} · đang nhận dạng…`);
+            const raw = await callGeminiSinglePageWithRetry(b64, model);
+            pagesData.push({ pageNum: p, canvas, text: applyIgnore(cleanAIText(raw)) });
+            setProgress(i + 1, total);
+            log(`Trang ${p} hoàn tất`, 'success');
+          } catch (err) {
+            stoppedAt = p; reason = err.message;
+            $('chipFail').textContent = '1';
+            log(`Trang ${p} thất bại: ${reason}`, 'error');
+            break;
+          }
+        }
+
+        if (pagesData.length) {
+          log(`Đang xuất ${pagesData.length} trang ra DOCX [${fmt.toUpperCase()}]…`);
+          await buildAndDownloadDocxHTML(pagesData, fmt);
+        }
+
+        const n = pagesData.length;
+        if (stoppedAt === null) {
+          showBanner('success', `Hoàn tất: đã xuất ${n} trang${isPdfFile ? ` (${from}–${to})` : ''}.`);
+        } else if (n > 0) {
+          if (isPdfFile) $('pageFrom').value = stoppedAt;
+          showBanner('warn', `Đã xuất ${n} trang (${pagesData[0].pageNum}–${pagesData[n - 1].pageNum}). Dừng ở trang ${stoppedAt}: ${reason}.` + (isPdfFile ? ` Ô "Từ trang" đã đặt sẵn = ${stoppedAt}.` : ''),
+            'Nhập API key mới', () => { $('directKeyInput').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('directKeyInput').focus(); });
+        } else {
+          showBanner('error', `Chưa xuất được trang nào: ${reason}.`, 'Nhập API key mới', () => { $('directKeyInput').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('directKeyInput').focus(); });
+        }
+      } catch (err) {
+        log(`Lỗi không mong muốn: ${err.message}`, 'error');
+        showBanner('error', err.message);
+      } finally {
+        btnRun.disabled = false; btnRun.classList.remove('opacity-50', 'cursor-not-allowed');
+        $('btnStop').classList.add('hidden');
+        $('runDot').className = 'h-2 w-2 rounded-full bg-slate-600';
+        if (stoppedAt === null) $('progressText').textContent = `${pagesData.length}/${total} trang`;
+        else $('progressText').textContent = `Dừng · ${pagesData.length}/${total} trang`;
+      }
+    }
+
+    async function callGeminiSinglePageWithRetry(base64Data, model) {
+      let lastErr = null;
+      let attempts = 0;
+      let maxAttempts = Math.max(2, apiKeys.length * 2);
+
+      while (attempts < maxAttempts) {
+        const key = getActiveKey();
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+          const payload = {
+            contents: [{
+              parts: [
+                { inline_data: { mime_type: 'image/png', data: base64Data } },
+                { text: "OCR toàn bộ trang này theo đúng hướng dẫn. Không thêm bất kỳ lời dẫn nào." }
+              ]
+            }],
+            system_instruction: { parts: [{ text: buildSystemPrompt() }] },
+            generationConfig: { temperature: 0.1 }
+          };
+
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            let msg = `HTTP ${res.status}`;
+            try { const ej = await res.json(); msg = ej.error?.message || msg; } catch (_) {}
+            const e = new Error(msg); e.status = res.status; throw e;
+          }
+
+          const resData = await res.json();
+          const outText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!outText) throw new Error("AI không trả về văn bản.");
+          return outText;
+
+        } catch (err) {
+          lastErr = err;
+          log(`Key #${currentKeyIdx + 1}: ${friendlyError(err)}${apiKeys.length > 1 ? ' → đổi key' : ' → thử lại'}`, 'warn');
+          rotateKey();
+          await new Promise(r => setTimeout(r, 2000));
+          attempts++;
+        }
+      }
+      throw new Error(`mọi API key đều lỗi (${friendlyError(lastErr)})`);
+    }
+
+    // --- 5. BỘ CHUYỂN LaTeX -> WORD EQUATION (OMML) & DỰNG DOCX ---
+// ==== DOCX CORE START ====
+// Bộ chuyển LaTeX -> OMML (Word Equation) + dựng file .docx thuần (không cần DOM)
+const MATH_FONT = 'Cambria Math';
+function xmlEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const SYM = {
+  alpha:'α',beta:'β',gamma:'γ',delta:'δ',epsilon:'ε',varepsilon:'ε',zeta:'ζ',eta:'η',theta:'θ',vartheta:'ϑ',iota:'ι',kappa:'κ',lambda:'λ',mu:'μ',nu:'ν',xi:'ξ',pi:'π',varpi:'ϖ',rho:'ρ',varrho:'ϱ',sigma:'σ',varsigma:'ς',tau:'τ',upsilon:'υ',phi:'φ',varphi:'φ',chi:'χ',psi:'ψ',omega:'ω',
+  Gamma:'Γ',Delta:'Δ',Theta:'Θ',Lambda:'Λ',Xi:'Ξ',Pi:'Π',Sigma:'Σ',Upsilon:'Υ',Phi:'Φ',Psi:'Ψ',Omega:'Ω',
+  cdot:'⋅',times:'×',div:'÷',pm:'±',mp:'∓',ast:'∗',star:'⋆',circ:'∘',bullet:'∙',oplus:'⊕',otimes:'⊗',
+  le:'≤',leq:'≤',leqslant:'≤',ge:'≥',geq:'≥',geqslant:'≥',ne:'≠',neq:'≠',approx:'≈',equiv:'≡',sim:'∼',simeq:'≃',cong:'≅',propto:'∝',ll:'≪',gg:'≫',
+  in:'∈',notin:'∉',ni:'∋',subset:'⊂',subseteq:'⊆',supset:'⊃',supseteq:'⊇',nsubseteq:'⊈',cup:'∪',cap:'∩',emptyset:'∅',varnothing:'∅',setminus:'∖',
+  forall:'∀',exists:'∃',nexists:'∄',neg:'¬',lnot:'¬',land:'∧',wedge:'∧',lor:'∨',vee:'∨',
+  to:'→',rightarrow:'→',leftarrow:'←',leftrightarrow:'↔',Rightarrow:'⇒',Leftarrow:'⇐',Leftrightarrow:'⇔',implies:'⟹',iff:'⟺',mapsto:'↦',uparrow:'↑',downarrow:'↓',longrightarrow:'⟶',Longrightarrow:'⟹',longleftrightarrow:'⟷',nearrow:'↗',searrow:'↘',
+  infty:'∞',partial:'∂',nabla:'∇',angle:'∠',measuredangle:'∡',perp:'⊥',parallel:'∥',nparallel:'∦',triangle:'△',square:'□',prime:'′',
+  ldots:'…',dots:'…',cdots:'⋯',vdots:'⋮',ddots:'⋱',hbar:'ℏ',ell:'ℓ',Re:'ℜ',Im:'ℑ',aleph:'ℵ',therefore:'∴',because:'∵',degree:'°',
+  lfloor:'⌊',rfloor:'⌋',lceil:'⌈',rceil:'⌉',langle:'⟨',rangle:'⟩',vert:'|',Vert:'‖',lbrace:'{',rbrace:'}',
+  '{':'{','}':'}','|':'‖','%':'%','$':'$','#':'#','&':'&','_':'_','\\':'\n'
+};
+const SPACES = {',':'\u2009',';':'\u2005',':':'\u2005','!':'',' ':' ',quad:'\u2003',qquad:'\u2003\u2003',enspace:'\u2002',space:' '};
+const BIGOPS = {sum:'∑',prod:'∏',coprod:'∐',int:'∫',iint:'∬',iiint:'∭',oint:'∮',bigcup:'⋃',bigcap:'⋂',bigoplus:'⨁',bigvee:'⋁',bigwedge:'⋀'};
+const FUNCS = new Set(['sin','cos','tan','cot','sec','csc','arcsin','arccos','arctan','sinh','cosh','tanh','coth','log','ln','lg','exp','det','dim','gcd','deg','ker','arg','Pr','hom','mod','bmod']);
+const LIMOPS = new Set(['lim','max','min','sup','inf','limsup','liminf']);
+const ACC = {vec:'\u20D7',overrightarrow:'\u20D7',overleftarrow:'\u20D6',hat:'\u0302',widehat:'\u0302',tilde:'\u0303',widetilde:'\u0303',dot:'\u0307',ddot:'\u0308',check:'\u030C',acute:'\u0301',grave:'\u0300',breve:'\u0306',mathring:'\u030A'};
+const IGNORE = new Set(['displaystyle','textstyle','scriptstyle','scriptscriptstyle','limits','nolimits','hline','cline','hfill','nonumber','notag','centering','relax','strut','mathstrut']);
+const SKIP_ARG = new Set(['hspace','vspace','phantom','hphantom','vphantom','label','tag']);
+const BIGSIZE = new Set(['big','Big','bigg','Bigg','bigl','bigr','Bigl','Bigr','biggl','biggr','Biggl','Biggr']);
+const BREAK_CMDS = new Set(['le','leq','ge','geq','ne','neq','approx','equiv','sim','simeq','to','rightarrow','Rightarrow','Leftarrow','Leftrightarrow','leftrightarrow','implies','iff','in','notin','ni','subset','subseteq','supset','supseteq','cup','cap','pm','mp','quad','qquad','leqslant','geqslant','land','lor']);
+const RAWSTYLE = {text:'nor',textrm:'nor',mbox:'nor',textbf:'nor_b',textit:'nor_i',mathrm:'p',operatorname:'p',mathbf:'b',boldsymbol:'b',bm:'b',mathit:'i',mathbb:'bb',mathcal:'plain',mathsf:'plain',mathtt:'plain',mathfrak:'plain'};
+const BB = {R:'ℝ',N:'ℕ',Z:'ℤ',Q:'ℚ',C:'ℂ',P:'ℙ',H:'ℍ'};
+
+function readBraced(s, j){ // s[j]==='{'
+  let d=0,i=j;
+  for(;i<s.length;i++){
+    const c=s[i];
+    if(c==='\\'){i++;continue;}
+    if(c==='{')d++;
+    else if(c==='}'){d--; if(d===0){return {text:s.slice(j+1,i),end:i+1};}}
+  }
+  return {text:s.slice(j+1),end:s.length};
+}
+
+function tokenizeLatex(s){
+  const toks=[]; let i=0; const n=s.length; const re=/\\([A-Za-z]+)/y;
+  while(i<n){
+    const c=s[i];
+    if(/\s/.test(c)){i++;continue;}
+    if(c==='\\'){
+      re.lastIndex=i; const m=re.exec(s);
+      if(m){
+        const name=m[1]; i+=m[0].length;
+        let j=i; while(j<n&&/\s/.test(s[j]))j++;
+        if((name==='begin'||name==='end')&&s[j]==='{'){const g=readBraced(s,j); toks.push({k:name,v:g.text.trim()}); i=g.end; continue;}
+        if(RAWSTYLE[name]&&s[j]==='{'){const g=readBraced(s,j); toks.push({k:'text',v:g.text,style:RAWSTYLE[name]}); i=g.end; continue;}
+        toks.push({k:'cmd',v:name});
+      } else { if(i+1<n) toks.push({k:'cmd',v:s[i+1]}); i+=2; }
+      continue;
+    }
+    if('{}^_&'.includes(c)){toks.push({k:'sym',v:c});i++;continue;}
+    toks.push({k:'ch',v:c}); i++;
+  }
+  return toks;
+}
+
+function runXml(t, sty){
+  let rpr='', font=MATH_FONT, extra='';
+  if(sty==='nor'||sty==='nor_b'||sty==='nor_i'){
+    rpr='<m:rPr><m:nor/></m:rPr>'; font='Times New Roman';
+    if(sty==='nor_b') extra='<w:b/>'; if(sty==='nor_i') extra='<w:i/>';
+  } else if(sty){ rpr=`<m:rPr><m:sty m:val="${sty}"/></m:rPr>`; }
+  return `<m:r>${rpr}<w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}"/>${extra}</w:rPr><m:t xml:space="preserve">${xmlEsc(t)}</m:t></m:r>`;
+}
+const mkRun=(t,sty,fn)=>({run:1,t,sty:sty||null,fn:!!fn});
+function emit(items){
+  let out='',cur=null;
+  const flush=()=>{ if(cur&&cur.t!=='') out+=runXml(cur.t,cur.sty); cur=null; };
+  for(const it of items){
+    if(it==null) continue;
+    if(typeof it==='string'){flush(); out+=it;}
+    else if(it.run){ if(cur&&cur.sty===it.sty) cur.t+=it.t; else {flush(); cur={t:it.t,sty:it.sty};} }
+  }
+  flush(); return out;
+}
+function rawToText(v){
+  return v.replace(/\\([A-Za-z]+)/g,(m,n)=>SYM[n]||'').replace(/\\([^A-Za-z])/g,(m,c)=>SPACES[c]!==undefined?SPACES[c]:(SYM[c]||c)).replace(/[{}]/g,'');
+}
+function dXml(open,close,parts,sep){
+  return `<m:d><m:dPr><m:begChr m:val="${xmlEsc(open)}"/>${sep?`<m:sepChr m:val="${xmlEsc(sep)}"/>`:''}<m:endChr m:val="${xmlEsc(close)}"/></m:dPr>${parts.map(p=>`<m:e>${p}</m:e>`).join('')}</m:d>`;
+}
+
+function latexToOmmlInner(src){
+  const toks=tokenizeLatex(src); let pos=0;
+  const isClose=x=>x.k==='sym'&&x.v==='}';
+  const isRelBreak=t=>{
+    if(t.k==='ch') return '=<>,;+-'.includes(t.v);
+    if(t.k==='cmd') return BREAK_CMDS.has(t.v);
+    return false;
+  };
+  function parseSeq(stop){
+    const items=[];
+    while(pos<toks.length){
+      const t=toks[pos];
+      if(stop(t)) break;
+      const a=parseAtomScripts(stop);
+      if(a!=null) items.push(a);
+    }
+    return items;
+  }
+  function arg(){
+    if(pos>=toks.length) return '';
+    const t=toks[pos];
+    if(t.k==='sym'&&t.v==='{'){pos++; const it=parseSeq(isClose); pos++; return emit(it);}
+    const a=parseAtom(()=>false);
+    if(a==null) return '';
+    return typeof a==='string'?a:(a.final?a.xml:emit([a]));
+  }
+  function scriptArg(){
+    if(pos>=toks.length) return '';
+    const t=toks[pos];
+    if(t.k==='sym'&&t.v==='{'){pos++; const it=parseSeq(isClose); pos++; return emit(it);}
+    const a=parseAtom(()=>false);
+    if(a==null) return '';
+    return typeof a==='string'?a:(a.final?a.xml:emit([a]));
+  }
+  function tryDegree(){
+    const a=toks[pos],b=toks[pos+1],c=toks[pos+2];
+    if(a&&a.k==='cmd'&&a.v==='circ'){pos++;return true;}
+    if(a&&a.k==='sym'&&a.v==='{'&&b&&b.k==='cmd'&&b.v==='circ'&&c&&c.k==='sym'&&c.v==='}'){pos+=3;return true;}
+    return false;
+  }
+  function readDelim(){
+    const t=toks[pos++]; if(!t) return '';
+    if(t.k==='ch') return t.v==='.'?'':t.v;
+    if(t.k==='cmd'){
+      const m={'{':'{','}':'}','|':'‖',langle:'⟨',rangle:'⟩',lfloor:'⌊',rfloor:'⌋',lceil:'⌈',rceil:'⌉',vert:'|',Vert:'‖',lbrace:'{',rbrace:'}',backslash:'\\',slash:'/',lvert:'|',rvert:'|',lVert:'‖',rVert:'‖'};
+      return m[t.v]||'';
+    }
+    return '';
+  }
+  function parseAtomScripts(stop){
+    const base=parseAtom(stop);
+    if(base==null) return null;
+    if(typeof base==='object'&&base.final) return base.xml;
+    let sub=null,sup=null,primes='';
+    while(pos<toks.length){
+      const t=toks[pos];
+      if(t.k==='sym'&&t.v==='^'){pos++; sup=tryDegree()?runXml('°',null):scriptArg();}
+      else if(t.k==='sym'&&t.v==='_'){pos++; sub=scriptArg();}
+      else if(t.k==='ch'&&t.v==="'"){pos++; primes+='′';}
+      else break;
+    }
+    if(primes) sup=runXml(primes,null)+(sup||'');
+    if(sub===null&&sup===null){
+      if(typeof base==='object'&&base.fn){
+        const nx=toks[pos];
+        if(!(nx&&((nx.k==='ch'&&nx.v==='(')||(nx.k==='cmd'&&nx.v==='left')))) base.t+='\u2009';
+      }
+      return base;
+    }
+    const bx=typeof base==='string'?base:emit([base]);
+    let res;
+    if(sub!==null&&sup!==null) res=`<m:sSubSup><m:e>${bx}</m:e><m:sub>${sub}</m:sub><m:sup>${sup}</m:sup></m:sSubSup>`;
+    else if(sup!==null) res=`<m:sSup><m:e>${bx}</m:e><m:sup>${sup}</m:sup></m:sSup>`;
+    else res=`<m:sSub><m:e>${bx}</m:e><m:sub>${sub}</m:sub></m:sSub>`;
+    if(typeof base==='object'&&base.fn) res+=runXml('\u2009','nor');
+    return res;
+  }
+  function parseEnv(env){
+    const name=env.replace(/\*$/,'');
+    if((name==='array'||name==='tabular'||name==='subarray')&&toks[pos]&&toks[pos].k==='sym'&&toks[pos].v==='{'){
+      let d=0; do{const t=toks[pos++]; if(t.k==='sym'&&t.v==='{')d++; else if(t.k==='sym'&&t.v==='}')d--;}while(d>0&&pos<toks.length);
+    }
+    const rows=[[]];
+    while(pos<toks.length){
+      const items=parseSeq(x=>x.k==='end'||(x.k==='sym'&&x.v==='&')||(x.k==='cmd'&&x.v==='\\'));
+      rows[rows.length-1].push(emit(items));
+      if(pos>=toks.length) break;
+      const t=toks[pos++];
+      if(t.k==='end') break;
+      if(t.k==='cmd'&&t.v==='\\'){
+        if(toks[pos]&&toks[pos].k==='ch'&&toks[pos].v==='['){ while(pos<toks.length&&!(toks[pos].k==='ch'&&toks[pos].v===']'))pos++; pos++; }
+        rows.push([]);
+      }
+    }
+    while(rows.length>1&&rows[rows.length-1].every(c=>c==='')) rows.pop();
+    const cols=Math.max(1,...rows.map(r=>r.length));
+    rows.forEach(r=>{while(r.length<cols)r.push('');});
+    const mat=()=>`<m:m>${rows.map(r=>`<m:mr>${r.map(c=>`<m:e>${c}</m:e>`).join('')}</m:mr>`).join('')}</m:m>`;
+    const D={pmatrix:['(',')'],bmatrix:['[',']'],Bmatrix:['{','}'],vmatrix:['|','|'],Vmatrix:['‖','‖']};
+    if(D[name]) return dXml(D[name][0],D[name][1],[mat()]);
+    if(name==='matrix'||name==='array'||name==='tabular'||name==='smallmatrix'||name==='subarray') return mat();
+    if(name==='cases'||name==='dcases'||name==='rcases'){
+      const sep=runXml('\u2003\u2003','nor');
+      const eq=`<m:eqArr>${rows.map(r=>`<m:e>${r.join(sep)}</m:e>`).join('')}</m:eqArr>`;
+      return name==='rcases'?dXml('','}',[eq]):dXml('{','',[eq]);
+    }
+    if(['aligned','align','alignat','split','gather','gathered','eqnarray','multline','flalign'].includes(name)){
+      const amp=runXml('&',null);
+      return `<m:eqArr>${rows.map(r=>`<m:e>${r.join(amp)}</m:e>`).join('')}</m:eqArr>`;
+    }
+    return rows.map(r=>r.join('')).join('');
+  }
+
+  function parseAtom(stop){
+    const t=toks[pos++];
+    if(t.k==='sym'){
+      if(t.v==='{'){const it=parseSeq(isClose); pos++; return emit(it);}
+      if(t.v==='^'||t.v==='_'){pos--; return mkRun('',null);}
+      return null;
+    }
+    if(t.k==='ch'){
+      if(t.v==='-') return mkRun('−',null);
+      if(t.v==="'") return mkRun('′',null);
+      if(t.v==='~') return mkRun(' ','nor');
+      return mkRun(t.v,null);
+    }
+    if(t.k==='text'){
+      const st=t.style; let s=rawToText(t.v);
+      if(st==='bb') s=s.replace(/[A-Z]/g,ch=>BB[ch]||ch);
+      if(st==='plain'||st==='bb') return mkRun(s,null);
+      return mkRun(s,st);
+    }
+    if(t.k==='begin') return parseEnv(t.v);
+    if(t.k==='end') return null;
+    const name=t.v;
+    if(BIGOPS[name]){
+      let sub=null,sup=null;
+      while(pos<toks.length){
+        const x=toks[pos];
+        if(x.k==='cmd'&&(x.v==='limits'||x.v==='nolimits')){pos++;continue;}
+        if(x.k==='sym'&&x.v==='_'){pos++;sub=scriptArg();}
+        else if(x.k==='sym'&&x.v==='^'){pos++;sup=scriptArg();}
+        else break;
+      }
+      let depth=0;
+      const bodyStop=x=>{
+        if(stop(x)) return true;
+        if(depth<=0&&isRelBreak(x)) return true;
+        if(x.k==='ch'){ if('(['.includes(x.v)) depth++; else if(')]'.includes(x.v)) depth--; }
+        return false;
+      };
+      const body=emit(parseSeq(bodyStop));
+      const isInt=['int','iint','iiint','oint'].includes(name);
+      const pr=`<m:naryPr><m:chr m:val="${BIGOPS[name]}"/><m:limLoc m:val="${isInt?'subSup':'undOvr'}"/>${sub===null?'<m:subHide m:val="1"/>':''}${sup===null?'<m:supHide m:val="1"/>':''}</m:naryPr>`;
+      return {final:1,xml:`<m:nary>${pr}<m:sub>${sub||''}</m:sub><m:sup>${sup||''}</m:sup><m:e>${body}</m:e></m:nary>`};
+    }
+    if(LIMOPS.has(name)){
+      let p=pos;
+      while(toks[p]&&toks[p].k==='cmd'&&(toks[p].v==='limits'||toks[p].v==='nolimits'))p++;
+      if(toks[p]&&toks[p].k==='sym'&&toks[p].v==='_'){
+        pos=p+1; const lim=scriptArg();
+        return {final:1,xml:`<m:limLow><m:e>${runXml(name,'p')}</m:e><m:lim>${lim}</m:lim></m:limLow>`};
+      }
+      return mkRun(name,'p',true);
+    }
+    if(FUNCS.has(name)) return mkRun(name,'p',true);
+    if(ACC[name]){const a=arg(); return `<m:acc><m:accPr><m:chr m:val="${ACC[name]}"/></m:accPr><m:e>${a}</m:e></m:acc>`;}
+    switch(name){
+      case 'frac': case 'dfrac': case 'tfrac': case 'cfrac': {const a=arg(),b=arg(); return `<m:f><m:num>${a}</m:num><m:den>${b}</m:den></m:f>`;}
+      case 'binom': case 'dbinom': case 'tbinom': {const a=arg(),b=arg(); return dXml('(',')',[`<m:f><m:fPr><m:type m:val="noBar"/></m:fPr><m:num>${a}</m:num><m:den>${b}</m:den></m:f>`]);}
+      case 'sqrt': {
+        let deg=null;
+        if(toks[pos]&&toks[pos].k==='ch'&&toks[pos].v==='['){pos++; const it=parseSeq(x=>x.k==='ch'&&x.v===']'); pos++; deg=emit(it);}
+        const body=arg();
+        return deg!==null?`<m:rad><m:deg>${deg}</m:deg><m:e>${body}</m:e></m:rad>`:`<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>${body}</m:e></m:rad>`;
+      }
+      case 'overline': case 'bar': {const a=arg(); return `<m:bar><m:barPr><m:pos m:val="top"/></m:barPr><m:e>${a}</m:e></m:bar>`;}
+      case 'underline': {const a=arg(); return `<m:bar><m:barPr><m:pos m:val="bot"/></m:barPr><m:e>${a}</m:e></m:bar>`;}
+      case 'overbrace': case 'underbrace': {
+        const a=arg(); const top=name==='overbrace';
+        return `<m:groupChr><m:groupChrPr><m:chr m:val="${top?'⏞':'⏟'}"/><m:pos m:val="${top?'top':'bot'}"/><m:vertJc m:val="${top?'bot':'top'}"/></m:groupChrPr><m:e>${a}</m:e></m:groupChr>`;
+      }
+      case 'left': {
+        const open=readDelim(); const parts=[]; const seps=[]; let close='';
+        while(true){
+          const it=parseSeq(x=>x.k==='cmd'&&(x.v==='right'||x.v==='middle'));
+          parts.push(emit(it));
+          if(pos>=toks.length) break;
+          const t2=toks[pos++];
+          if(t2.v==='middle'){seps.push(readDelim());continue;}
+          close=readDelim(); break;
+        }
+        return dXml(open,close,parts,seps[0]);
+      }
+      case 'right': case 'middle': readDelim(); return null;
+      case 'not': return null;
+      case 'xrightarrow': case 'xleftarrow': {arg(); return mkRun(name==='xrightarrow'?'→':'←',null);}
+      default: break;
+    }
+    if(BIGSIZE.has(name)){const d=readDelim(); return d?mkRun(d,null):null;}
+    if(IGNORE.has(name)) return null;
+    if(SKIP_ARG.has(name)){arg(); return null;}
+    if(SPACES[name]!==undefined){ return SPACES[name]===''?null:mkRun(SPACES[name],'nor'); }
+    if(SYM[name]!==undefined){ return SYM[name]==='\n'?null:mkRun(SYM[name],null); }
+    return mkRun(name,'nor');
+  }
+  const items=parseSeq(()=>false);
+  return emit(items);
+}
+
+function texToOmml(latex, display){
+  try{
+    const inner=latexToOmmlInner(latex.trim());
+    if(!inner) return null;
+    return display?`<m:oMathPara><m:oMath>${inner}</m:oMath></m:oMathPara>`:`<m:oMath>${inner}</m:oMath>`;
+  }catch(e){ return null; }
+}
+
+// ---------- Dựng nội dung Word ----------
+function textRun(text,bold){
+  if(text==='') return '';
+  return `<w:r>${bold?'<w:rPr><w:b/></w:rPr>':''}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;
+}
+function boldSplit(s,boldAll){
+  if(!s) return '';
+  const parts=s.split('**'); let b=!!boldAll,out='';
+  parts.forEach((p,i)=>{ if(i>0) b=!b; out+=textRun(p,b); });
+  return out;
+}
+function inlineToXml(text,fmt,boldAll){
+  let out='',last=0,m;
+  const re=/\$\$([\s\S]*?)\$\$|\$([^$]+?)\$/g;
+  while((m=re.exec(text))){
+    out+=boldSplit(text.slice(last,m.index),boldAll);
+    const display=m[1]!==undefined; const latex=display?m[1]:m[2];
+    if(fmt==='latex') out+=textRun(m[0],boldAll);
+    else{
+      const omml=texToOmml(latex,display&&text.trim()===m[0]);
+      out+=omml||textRun(m[0],boldAll);
+    }
+    last=m.index+m[0].length;
+  }
+  out+=boldSplit(text.slice(last),boldAll);
+  return out;
+}
+function para(inner,opts){
+  opts=opts||{};
+  return `<w:p><w:pPr><w:spacing w:before="${opts.before??60}" w:after="${opts.after??60}" w:line="324" w:lineRule="auto"/>${opts.center?'<w:jc w:val="center"/>':(opts.left?'':'<w:jc w:val="both"/>')}</w:pPr>${inner}</w:p>`;
+}
+function splitTableRow(line){
+  const cells=[]; let cur='',inMath=false;
+  const s=line.trim().replace(/^\|/,'').replace(/\|$/,'');
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(c==='$') inMath=!inMath;
+    if(c==='|'&&!inMath){cells.push(cur.trim());cur='';}
+    else cur+=c;
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+function tableXml(rawLines,fmt){
+  const rows=[];
+  for(const l of rawLines){
+    if(/^\|[\s\-:|]+\|$/.test(l.trim())) continue;
+    rows.push(splitTableRow(l));
+  }
+  if(!rows.length) return '';
+  const cols=Math.max(...rows.map(r=>r.length));
+  const total=9746, cw=Math.floor(total/cols);
+  const b=(n)=>`<w:${n} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
+  let x=`<w:tbl><w:tblPr><w:tblW w:w="${cw*cols}" w:type="dxa"/><w:tblBorders>${b('top')}${b('left')}${b('bottom')}${b('right')}${b('insideH')}${b('insideV')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${('<w:gridCol w:w="'+cw+'"/>').repeat(cols)}</w:tblGrid>`;
+  for(const r of rows){
+    x+='<w:tr>';
+    for(let c=0;c<cols;c++){
+      x+=`<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/></w:tcPr>${para(inlineToXml(r[c]||'',fmt,false),{left:true,before:40,after:40})}</w:tc>`;
+    }
+    x+='</w:tr>';
+  }
+  return x+'</w:tbl>'+para('',{before:0,after:0});
+}
+function imageXml(id,wpx,hpx){
+  const maxW=420; let w=wpx,h=hpx;
+  if(w>maxW){h=h*maxW/w;w=maxW;}
+  const cx=Math.max(1,Math.round(w*9525)),cy=Math.max(1,Math.round(h*9525));
+  return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Hinh ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="img${id}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+}
+
+const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+const XMLH='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+
+function normalizeMathDelims(t){
+  return t.replace(/\\\[([\s\S]*?)\\\]/g,(m,a)=>'$$'+a+'$$').replace(/\\\(([\s\S]*?)\\\)/g,(m,a)=>'$'+a+'$');
+}
+
+async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib){
+  const media=[]; let body='';
+  pagesData.forEach((page,pIdx)=>{
+    if(pIdx>0) body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+    const lines=normalizeMathDelims(page.text).split('\n');
+    let tbl=[];
+    const flushTbl=()=>{ if(tbl.length){body+=tableXml(tbl,fmt);tbl=[];} };
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i].trim();
+      if(line.startsWith('|')&&line.endsWith('|')&&line.length>1){tbl.push(line);continue;}
+      flushTbl();
+      if(!line) continue;
+      const imgRe=/\[IMAGE:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/;
+      const im=line.match(imgRe);
+      let textLine=line;
+      if(im) textLine=line.replace(new RegExp(imgRe.source,'g'),'').trim();
+      if(textLine){
+        const plain=textLine.replace(/^\*\*/,'');
+        let inner;
+        const hm=!textLine.startsWith('**')&&/^((?:Câu|Bài)\s*\d+\s*[.:]?)/i.exec(textLine);
+        if(/^\**PHẦN/i.test(textLine)||/^\**PHẦN/i.test(plain)) inner=inlineToXml(textLine,fmt,true);
+        else if(hm) inner=textRun(hm[1],true)+inlineToXml(textLine.slice(hm[1].length),fmt,false);
+        else inner=inlineToXml(textLine,fmt,false);
+        body+=para(inner,{});
+      }
+      if(im){
+        const [,ymin,xmin,ymax,xmax]=im.map(Number);
+        const img=getImage(page,ymin,xmin,ymax,xmax);
+        if(img){media.push(img.base64); body+=imageXml(media.length,img.w,img.h);}
+      }
+    }
+    flushTbl();
+  });
+  body+=para('',{before:0,after:0});
+  const doc=`${XMLH}<w:document ${NS}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const zip=new JSZipLib();
+  zip.file('[Content_Types].xml',`${XMLH}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/></Types>`);
+  zip.file('_rels/.rels',`${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+  let rels=`<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>`;
+  media.forEach((b64,i)=>{
+    rels+=`<Relationship Id="rIdImg${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/img${i+1}.png"/>`;
+    zip.file(`word/media/img${i+1}.png`,b64,{base64:true});
+  });
+  zip.file('word/_rels/document.xml.rels',`${XMLH}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels}</Relationships>`);
+  zip.file('word/styles.xml',`${XMLH}<w:styles xmlns:w="${W}"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="26"/><w:szCs w:val="26"/><w:lang w:val="vi-VN"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`);
+  zip.file('word/settings.xml',`${XMLH}<w:settings xmlns:w="${W}" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><w:zoom w:percent="100"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat><m:mathPr><m:mathFont m:val="Cambria Math"/><m:brkBin m:val="before"/><m:brkBinSub m:val="--"/><m:smallFrac m:val="0"/><m:dispDef/><m:lMargin m:val="0"/><m:rMargin m:val="0"/><m:defJc m:val="centerGroup"/><m:wrapIndent m:val="1440"/><m:intLim m:val="subSup"/><m:naryLim m:val="undOvr"/></m:mathPr></w:settings>`);
+  zip.file('word/document.xml',doc);
+  return zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',compression:'DEFLATE'});
+}
+// ==== DOCX CORE END ====
+
+
+    // --- 6. CROP HÌNH & XUẤT DOCX THẬT (Word Equation / OMML) ---
+    function cropCanvasToImage(sourceCanvas, ymin, xmin, ymax, xmax) {
+      try {
+        const sx = Math.max(0, xmin * sourceCanvas.width / 1000);
+        const sy = Math.max(0, ymin * sourceCanvas.height / 1000);
+        const cw = Math.max(1, Math.round((xmax - xmin) * sourceCanvas.width / 1000));
+        const ch = Math.max(1, Math.round((ymax - ymin) * sourceCanvas.height / 1000));
+        const cropC = document.createElement('canvas');
+        cropC.width = cw;
+        cropC.height = ch;
+        cropC.getContext('2d').drawImage(sourceCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
+        // Ảnh render ở scale 2.0 => chia 2 để kích thước hiển thị trong Word hợp lý
+        return { base64: cropC.toDataURL('image/png').split(',')[1], w: cw / 2, h: ch / 2 };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function buildAndDownloadDocxHTML(pagesData, mathFormat) {
+      log("Đang tổng hợp dữ liệu và tạo Equation Word...");
+      try {
+        const getImage = (page, ymin, xmin, ymax, xmax) => {
+          log(`-> Đang crop hình vẽ [${ymin}, ${xmin}, ${ymax}, ${xmax}] ở Trang ${page.pageNum}...`);
+          return cropCanvasToImage(page.canvas, ymin, xmin, ymax, xmax);
+        };
+        const blob = await buildDocxBlob(pagesData, mathFormat, getImage, JSZip);
+        const fileName = `DeThi_OCR_${mathFormat.toUpperCase()}${isPdfFile ? `_tr${pagesData[0].pageNum}-${pagesData[pagesData.length - 1].pageNum}` : ''}.docx`;
+        saveAs(blob, fileName);
+        log(`🎉 XUẤT FILE HOÀN TẤT! Đã tải về: ${fileName}`);
+        if (mathFormat === 'mathtype') {
+          log('ℹ️ Mở file trong Word → thẻ MathType → "Convert Equations" để đổi toàn bộ Equation sang đối tượng MathType.');
+        }
+      } catch (err) {
+        log(`❌ Lỗi đóng gói DOCX: ${err.message}`);
+      }
+    }
+
+  </script>
+</body>
+</html>
