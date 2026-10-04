@@ -21,6 +21,7 @@
   <!-- FIREBASE JS SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <style>
     .console-box {
@@ -33,38 +34,45 @@
     .drag-active { border-color: #3b82f6 !important; background-color: rgba(30, 58, 138, 0.25) !important; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col p-3 md:p-6 font-sans antialiased">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
   <div id="toastBox" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none max-w-xs"></div>
 
-  <div class="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4">
-    
-    <!-- HEADER -->
-    <header class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-4 shadow-xl">
-      <div class="flex items-center justify-between gap-3">
+  <nav class="sticky top-0 z-30 w-full bg-[#0a1424]/95 backdrop-blur border-b border-slate-800/80">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+      <a href="#top" class="flex items-center gap-2.5 shrink-0">
+        <span class="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white font-extrabold shadow">Σ</span>
+        <span class="text-sm font-extrabold tracking-tight text-white">Toán OCR <span class="text-cyan-300">Pro</span></span>
+      </a>
+      <div class="hidden md:flex items-center gap-6">
+        <a href="#top" class="text-xs font-medium text-slate-300 hover:text-white transition">Trang chủ</a>
+        <a href="#features" class="text-xs font-medium text-slate-300 hover:text-white transition">Tính năng</a>
+        <a href="tel:0907291079" class="text-xs font-medium text-slate-300 hover:text-white transition">Liên hệ</a>
+      </div>
+      <div class="flex items-center gap-2">
         <div id="authGuest" class="flex items-center gap-2">
-          <button onclick="openAuth('login')" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition">🔑 Đăng nhập</button>
-          <button onclick="openAuth('register')" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">📝 Đăng ký</button>
+          <button onclick="openAuth('login')" class="text-xs font-medium text-slate-300 hover:text-white transition px-2 py-1.5">Đăng nhập</button>
+          <button onclick="openAuth('register')" class="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold shadow transition">Đăng ký</button>
         </div>
         <div id="authUser" class="items-center gap-2" style="display:none">
-          <span class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200">
-            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span><b id="userName" class="font-semibold"></b><span id="userRole" class="text-[10px] text-amber-300"></span>
+          <span class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs text-slate-200">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span><b id="userName" class="font-semibold max-w-[140px] truncate"></b><span id="userRole" class="text-[10px] text-amber-300"></span>
           </span>
-          <button onclick="logout()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">Đăng xuất</button>
+          <button onclick="logout()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">Đăng xuất</button>
         </div>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
-        <div class="flex items-center gap-3.5">
-        <div class="h-11 w-11 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-cyan-400 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-500/20">
-          ∑
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="font-extrabold text-lg md:text-xl text-white">Gemini Toán OCR Pro</h1>
-            <span class="px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">Clean Edition</span>
-          </div>
-          <p class="text-xs font-semibold text-amber-300/90 mt-0.5 flex items-center gap-1.5"><span>👨‍🏫</span>Thầy: Đoàn Văn Lãm - ĐT: 0907291079</p>
-        </div>
-      </div>
+    </div>
+  </nav>
+
+<div class="max-w-5xl w-full mx-auto flex-1 flex flex-col gap-4 p-3 md:p-6">
+    
+    <!-- HERO BANNER -->
+    <section id="top" class="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-[#0b1a33] via-[#0d2447] to-[#0f3150] px-5 py-9 md:py-12 text-center shadow-xl">
+      <div class="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl"></div>
+      <div class="pointer-events-none absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-indigo-500/25 blur-3xl"></div>
+      <div class="relative flex flex-col items-center gap-3.5">
+        <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">Chuyển đề thi PDF &amp; ảnh sang <span class="text-cyan-300">Word có công thức</span></h1>
+        <p class="text-sm text-slate-300 max-w-xl">Nhận dạng bằng Gemini, xuất Word Equation / MathType, tự bỏ nội dung thừa và xuất ngay phần đã xong khi hết hạn mức.</p>
+        <p class="flex items-center gap-1.5 text-sm font-semibold text-amber-300"><span>👨‍🏫</span>Thầy: Đoàn Văn Lãm - ĐT: 0907291079</p>
         <div id="modelBox" class="flex items-center justify-center gap-3">
         <div class="flex flex-col items-center">
           <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Mô hình AI:</label>
@@ -75,9 +83,9 @@
           </select>
         </div>
       </div>
-        <div class="hidden md:block"></div>
+        <div id="features" class="flex flex-wrap justify-center gap-2 pt-1"><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Word Equation thật</span><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Chọn trang cần chuyển</span><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Bỏ qua nội dung tùy ý</span><span class="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-200">✓ Đăng nhập bằng Google</span></div>
       </div>
-    </header>
+    </section>
 
     <!-- MÀN HÌNH KHÓA (chưa đăng nhập) -->
     <div id="lockScreen" class="flex flex-col items-center justify-center text-center gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-10 shadow-xl">
@@ -86,9 +94,12 @@
         <h2 class="text-base font-bold text-white">Vui lòng đăng nhập để sử dụng</h2>
         <p class="text-xs text-slate-400 mt-1">Tài khoản mới đăng ký cần được quản trị viên phê duyệt trước khi sử dụng.</p>
       </div>
-      <div class="flex gap-2">
+      <div class="flex flex-col items-stretch gap-2 w-full max-w-xs">
+        <button onclick="googleLogin()" class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold shadow transition"><svg viewBox="0 0 48 48" class="h-4 w-4 shrink-0"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Tiếp tục với Google</button>
+        <div class="flex gap-2 [&>button]:flex-1">
         <button onclick="openAuth('login')" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition">🔑 Đăng nhập</button>
         <button onclick="openAuth('register')" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">📝 Đăng ký</button>
+        </div>
       </div>
     </div>
 
@@ -649,6 +660,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       const tab = (m, label) => `<button onclick="openAuth('${m}')" class="flex-1 py-1.5 rounded-lg transition ${mode === m ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">${label}</button>`;
       openModal(reg ? 'Đăng ký tài khoản' : 'Đăng nhập',
         `<div class="flex gap-1 p-1 bg-slate-800 rounded-xl mb-4 text-xs font-semibold">${tab('login', 'Đăng nhập')}${tab('register', 'Đăng ký')}</div>
+        ${GOOGLE_BTN}${GOOGLE_DIV}
         <div class="flex flex-col gap-3">
           ${reg ? `<input id="auName" class="${INP}" placeholder="Họ và tên" />` : ''}
           <input id="auUser" class="${INP}" placeholder="Tên đăng nhập" autocomplete="username" />
@@ -669,7 +681,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       $('auBtn').disabled = true;
       try {
         if (mode === 'register') {
-          if (u === ADMIN_USER) { msg('Tên đăng nhập này đã được dành riêng.'); return; }
+          if (u === ADMIN_USER || u.startsWith('g_')) { msg('Tên đăng nhập này đã được dành riêng.'); return; }
           if (pw !== $('auPass2').value) { msg('Mật khẩu nhập lại không khớp.'); return; }
           const ref = db.ref('ocr_users/' + u);
           if ((await ref.once('value')).exists()) { msg('Tên đăng nhập đã tồn tại.'); return; }
@@ -704,7 +716,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       }
     }
     function logout() {
-      session = null; try { localStorage.removeItem('ocr_session'); } catch (e) {}
+      session = null; try { localStorage.removeItem('ocr_session'); } catch (e) {} try { firebase.auth().signOut(); } catch (e) {}
       applyAuthState(); toast('Đã đăng xuất.', 'success');
     }
     async function restoreSession() {
@@ -718,6 +730,48 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       applyAuthState();
     }
     window.addEventListener('DOMContentLoaded', restoreSession);
+
+    // ===== ĐĂNG NHẬP GOOGLE =====
+    const GOOGLE_BTN = `<button onclick="googleLogin()" class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold shadow transition"><svg viewBox="0 0 48 48" class="h-4 w-4 shrink-0"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Tiếp tục với Google</button>`;
+    const GOOGLE_DIV = `<div class="flex items-center gap-3 my-3 text-[10px] text-slate-500"><span class="h-px flex-1 bg-slate-800"></span>hoặc<span class="h-px flex-1 bg-slate-800"></span></div>`;
+    async function googleLogin() {
+      if (!(window.firebase && firebase.auth)) { toast('Chưa tải được Firebase Auth.', 'error'); return; }
+      try {
+        const prov = new firebase.auth.GoogleAuthProvider();
+        prov.setCustomParameters({ prompt: 'select_account' });
+        await firebase.auth().signInWithPopup(prov);
+      } catch (e) {
+        const map = {
+          'auth/popup-closed-by-user': null, 'auth/cancelled-popup-request': null,
+          'auth/popup-blocked': 'Trình duyệt đang chặn cửa sổ đăng nhập. Hãy cho phép popup rồi thử lại.',
+          'auth/unauthorized-domain': 'Tên miền này chưa được cho phép. Thêm vào Firebase → Authentication → Settings → Authorized domains.',
+          'auth/operation-not-allowed': 'Chưa bật đăng nhập Google trong Firebase Console (Authentication → Sign-in method).',
+          'auth/operation-not-supported-in-this-environment': 'Cần mở trang qua https hoặc localhost, không dùng được khi mở trực tiếp file.'
+        };
+        const m = e.code in map ? map[e.code] : (e.message || 'Đăng nhập Google thất bại.');
+        if (m) toast(m, 'error');
+      }
+    }
+    async function handleGoogleUser(user) {
+      if (!user) { if (session && session.provider === 'google') { session = null; applyAuthState(); } return; }
+      if (session && session.role === 'admin') return;
+      try {
+        const key = 'g_' + user.uid, ref = db.ref('ocr_users/' + key);
+        let r = (await ref.once('value')).val();
+        if (!r) {
+          r = { name: user.displayName || user.email, email: user.email || '', provider: 'google', status: 'pending', createdAt: Date.now() };
+          await ref.set(r);
+        }
+        if (r.status === 'approved') {
+          session = { user: key, role: 'user', name: r.name || user.email, provider: 'google' };
+          closeModal(); applyAuthState(); toast(`Xin chào, ${session.name}!`, 'success');
+        } else {
+          toast(r.status === 'pending' ? 'Đã gửi yêu cầu bằng tài khoản Google. Vui lòng chờ quản trị viên duyệt.' : 'Tài khoản đã bị khóa hoặc bị từ chối.', 'warn');
+          await firebase.auth().signOut();
+        }
+      } catch (e) { toast('Lỗi đăng nhập Google: ' + e.message, 'error'); }
+    }
+    window.addEventListener('DOMContentLoaded', () => { try { firebase.auth().onAuthStateChanged(handleGoogleUser); } catch (e) {} });
 
     // --- Quản trị ---
     function openAdmin() {
@@ -759,9 +813,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         const bd = badge[r.status] || ['Đã khóa', 'bg-rose-500/10 text-rose-300 border-rose-500/30'];
         const acts = (r.status === 'pending' ? b('✓ Duyệt', `setStatus('${u}','approved')`, ok) + b('Từ chối', `setStatus('${u}','rejected')`)
           : r.status === 'approved' ? b('Khóa', `setStatus('${u}','rejected')`) : b('Duyệt lại', `setStatus('${u}','approved')`, ok))
-          + b('🔑 Đổi MK', `togglePw('${u}')`) + b('Xóa', `delUser('${u}')`, 'bg-rose-600/80 hover:bg-rose-500 text-white');
+          + (r.provider === 'google' ? '' : b('🔑 Đổi MK', `togglePw('${u}')`)) + b('Xóa', `delUser('${u}')`, 'bg-rose-600/80 hover:bg-rose-500 text-white');
         return `<div class="flex flex-wrap items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2">
-          <div class="flex-1 min-w-[140px]"><p class="text-xs font-semibold text-slate-200">${esc(r.name || u)} <span class="text-slate-500 font-normal">@${u}</span></p><p class="text-[10px] text-slate-500">${r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : ''}</p></div>
+          <div class="flex-1 min-w-[140px]"><p class="text-xs font-semibold text-slate-200">${esc(r.name || u)} <span class="text-slate-500 font-normal">${r.provider === 'google' ? esc(r.email || '') + ' · Google' : '@' + u}</span></p><p class="text-[10px] text-slate-500">${r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : ''}</p></div>
           <span class="px-2 py-0.5 rounded-full border text-[10px] ${bd[1]}">${bd[0]}</span>
           <div class="flex flex-wrap gap-1">${acts}</div>
           <div id="pw_${u}" class="w-full gap-2" style="display:none"><input id="pwi_${u}" type="password" class="${INP}" placeholder="Mật khẩu mới cho ${u}" /><button onclick="saveUserPw('${u}')" class="px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shrink-0">Lưu</button></div>
@@ -1339,7 +1393,7 @@ function tableXml(rawLines,fmt){
     }
     x+='</w:tr>';
   }
-  return x+'</w:tbl>'+para('',{before:0,after:0});
+  return x+'</w:tbl>';
 }
 function imageXml(id,wpx,hpx){
   const maxW=420; let w=wpx,h=hpx;
@@ -1349,6 +1403,7 @@ function imageXml(id,wpx,hpx){
 }
 
 const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+const TINY_P='<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
 const XMLH='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
 function normalizeMathDelims(t){
@@ -1358,12 +1413,13 @@ function normalizeMathDelims(t){
 async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib){
   const media=[]; let body='';
   pagesData.forEach((page,pIdx)=>{
-    if(pIdx>0) body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+    const startLen=body.length;
     const lines=normalizeMathDelims(page.text).split('\n');
     let tbl=[];
-    const flushTbl=()=>{ if(tbl.length){body+=tableXml(tbl,fmt);tbl=[];} };
+    const flushTbl=()=>{ if(tbl.length){ if(body.endsWith('</w:tbl>')) body+=TINY_P; body+=tableXml(tbl,fmt); tbl=[]; } };
     for(let i=0;i<lines.length;i++){
-      const line=lines[i].trim();
+      const line=lines[i].replace(/<br\s*\/?>/gi,' ').trim();
+      if(/^[-*_=~\s]{3,}$/.test(line)||/^\$+$/.test(line)) continue;
       if(line.startsWith('|')&&line.endsWith('|')&&line.length>1){tbl.push(line);continue;}
       flushTbl();
       if(!line) continue;
@@ -1378,7 +1434,7 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib){
         if(/^\**PHẦN/i.test(textLine)||/^\**PHẦN/i.test(plain)) inner=inlineToXml(textLine,fmt,true);
         else if(hm) inner=textRun(hm[1],true)+inlineToXml(textLine.slice(hm[1].length),fmt,false);
         else inner=inlineToXml(textLine,fmt,false);
-        body+=para(inner,{});
+        if(inner) body+=para(inner,{});
       }
       if(im){
         const [,ymin,xmin,ymax,xmax]=im.map(Number);
@@ -1387,8 +1443,9 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib){
       }
     }
     flushTbl();
+    if(pIdx>0){ const seg=body.slice(startLen); body=body.slice(0,startLen)+seg.replace('<w:pPr>','<w:pPr><w:pageBreakBefore/>'); }
   });
-  body+=para('',{before:0,after:0});
+  if(body.endsWith('</w:tbl>')) body+=TINY_P;
   const doc=`${XMLH}<w:document ${NS}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
   const zip=new JSZipLib();
