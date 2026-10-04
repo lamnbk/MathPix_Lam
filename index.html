@@ -100,6 +100,7 @@
         <label class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
           <span>🔑</span> Danh Sách Gemini API Keys:
           <span id="keyCountText" class="text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded text-[11px]">0 keys</span>
+          <span id="keyHealth" class="px-2 py-0.5 rounded border text-[11px] font-semibold normal-case tracking-normal" style="display:none"></span>
         </label>
         <div class="flex flex-wrap items-center gap-2">
           <button onclick="openGetKey()" class="bg-white hover:bg-slate-100 text-slate-800 font-semibold px-3.5 py-1.5 rounded-xl text-xs transition flex items-center gap-1.5 shadow">
@@ -114,6 +115,10 @@
         </div>
       </div>
       <textarea id="directKeyInput" rows="2" placeholder="Dán API Key vào đây (mỗi dòng một key)..." class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"></textarea>
+      <div id="keyChipRow" class="flex flex-wrap items-center gap-1.5" style="display:none">
+        <div id="keyChips" class="flex flex-wrap items-center gap-1.5"></div>
+        <button id="btnRecheck" onclick="recheckKeys()" class="ml-auto px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition">↻ Kiểm tra lại</button>
+      </div>
       <p class="text-[11px] text-slate-500">Bấm <b class="text-slate-300">Lấy API key</b> → đăng nhập Google → tạo key → bấm Copy → quay lại trang này, key sẽ tự được dán và lưu.</p>
     </section>
 
@@ -411,14 +416,16 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     function updateKeyUI() {
       document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
       document.getElementById('directKeyInput').value = apiKeys.join('\n');
+      renderKeyChips();
     }
 
     function saveKeysDirectly() {
       const raw = document.getElementById('directKeyInput').value.trim();
-      apiKeys = raw.split(/[\n,]+/).map(k => k.trim()).filter(k => k.length > 0);
+      apiKeys = raw.split(/[\s,]+/).map(k => k.trim()).filter(k => k.length > 0);
       currentKeyIdx = 0;
       localStorage.setItem('gemini_ocr_keys', JSON.stringify(apiKeys));
       document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
+      renderKeyChips();
 
       if (db) {
         db.ref('ocr_config/api_keys').set(apiKeys)
@@ -434,7 +441,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       if (apiKeys.length === 0) {
         const raw = document.getElementById('directKeyInput').value.trim();
         if (raw) {
-          apiKeys = raw.split(/[\n,]+/).map(k => k.trim()).filter(k => k.length > 0);
+          apiKeys = raw.split(/[\s,]+/).map(k => k.trim()).filter(k => k.length > 0);
           updateKeyUI();
         }
       }
@@ -444,8 +451,11 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 
     function rotateKey() {
       if (apiKeys.length > 1) {
+        for (let i = 1; i <= apiKeys.length; i++) {
+          const idx = (currentKeyIdx + i) % apiKeys.length;
+          if (!isDead(apiKeys[idx])) { currentKeyIdx = idx; return; }
+        }
         currentKeyIdx = (currentKeyIdx + 1) % apiKeys.length;
-        /* đã log ở nơi gọi */
       }
     }
 
@@ -786,12 +796,13 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         const found = t.split(/[\s,]+/).filter(k => KEY_RE.test(k));
         if (!found.length) { if (!auto) toast('Clipboard chưa có API key hợp lệ. Hãy Copy key trước.'); return false; }
         const ta = $('directKeyInput');
-        const cur = ta.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+        const cur = ta.value.split(/[\s,]+/).map(k => k.trim()).filter(Boolean);
         const add = found.filter(k => !cur.includes(k));
         if (!add.length) { if (!auto) toast('Key này đã có trong danh sách.'); return false; }
         ta.value = [...cur, ...add].join('\n');
         saveKeysDirectly();
-        toast(`Đã dán và lưu ${add.length} key mới.`, 'success');
+        toast(`Đã dán và lưu ${add.length} key mới. Đang kiểm tra…`, 'success');
+        autoCheckKeys();
         return true;
       } catch (e) {
         if (!auto) toast('Trình duyệt chưa cho đọc clipboard. Hãy dán tay (Ctrl+V) vào ô danh sách key.');
@@ -821,6 +832,101 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           <div><p class="text-sm font-bold text-white">${esc(CONTACT.name)}</p><p class="text-[11px] text-amber-300">${esc(CONTACT.role)}</p></div>
         </div>${rows.join('')}</div>`);
     }
+
+    // ===== TRẠNG THÁI & CẢNH BÁO API KEY =====
+    const keyStatus = {};
+    const QUOTA_COOLDOWN = 10 * 60 * 1000;
+    function keyState(k) {
+      const st = keyStatus[k];
+      if (!st) return 'unknown';
+      if (st.state === 'quota' && Date.now() - st.ts > QUOTA_COOLDOWN) return 'unknown';
+      return st.state;
+    }
+    const isDead = (k) => { const s = keyState(k); return s === 'quota' || s === 'invalid'; };
+    function classifyErr(err) {
+      const m = (err && err.message) || '', st = err && err.status;
+      if (st === 429 || /quota|rate.?limit|RESOURCE_EXHAUSTED|exhaust/i.test(m)) return 'quota';
+      if (st === 401 || st === 403 || /API key not valid|API_KEY_INVALID|expired/i.test(m) || (st === 400 && /API key/i.test(m))) return 'invalid';
+      return 'error';
+    }
+    function markKey(k, state, msg) { keyStatus[k] = { state, msg: msg || '', ts: Date.now() }; renderKeyChips(); }
+    function renderKeyChips() {
+      const row = $('keyChipRow'), badge = $('keyHealth');
+      if (!row || !badge) return;
+      const keys = inputKeys();
+      if (!keys.length) { row.style.display = 'none'; badge.style.display = 'none'; return; }
+      const cls = {
+        ok: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', quota: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+        invalid: 'bg-rose-500/10 text-rose-300 border-rose-500/30', error: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+        unknown: 'bg-slate-800 text-slate-300 border-slate-700', testing: 'bg-blue-500/10 text-blue-300 border-blue-500/30 animate-pulse'
+      };
+      const tag = { ok: '✓', quota: '⛔ hết lượt', invalid: '✕ key sai', error: '⚠ lỗi', unknown: '', testing: '…' };
+      let ok = 0, quota = 0, invalid = 0;
+      $('keyChips').innerHTML = keys.map((k, i) => {
+        let st = keyState(k); const bad = !KEY_RE.test(k); if (bad) st = 'invalid';
+        if (st === 'quota') quota++; else if (st === 'invalid') invalid++; else ok++;
+        const reason = bad ? 'Sai định dạng key (thường bắt đầu bằng AIza… hoặc AQ.…)' : (keyStatus[k] && keyStatus[k].msg) || ({ unknown: 'Chưa kiểm tra', ok: 'Hoạt động tốt', testing: 'Đang kiểm tra' }[st] || '');
+        return `<span title="${esc(reason)}" class="px-2 py-0.5 rounded-full border text-[10px] font-mono ${cls[st]}${k === apiKeys[currentKeyIdx] ? ' ring-1 ring-white/30' : ''}">#${i + 1} ${esc(k.slice(0, 6))}… ${tag[st]}</span>`;
+      }).join('');
+      row.style.display = 'flex';
+      const parts = [`${ok} dùng được`];
+      if (quota) parts.push(`${quota} hết lượt`);
+      if (invalid) parts.push(`${invalid} key sai`);
+      const bc = ok === 0 ? 'text-rose-300 border-rose-500/40 bg-rose-500/10' : (ok <= 2 && quota + invalid > 0) ? 'text-amber-300 border-amber-500/40 bg-amber-500/10' : 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10';
+      badge.className = `px-2 py-0.5 rounded border text-[11px] font-semibold normal-case tracking-normal ${bc}`;
+      badge.textContent = (ok === 0 ? '⚠ Hết key dùng được · ' : '● ') + parts.join(' · ');
+      badge.style.display = 'inline-block';
+    }
+    function inputKeys() {
+      const ta = $('directKeyInput');
+      return ta ? ta.value.split(/[\s,]+/).map(k => k.trim()).filter(Boolean) : apiKeys.slice();
+    }
+    async function checkOneKey(k) {
+      keyStatus[k] = { state: 'testing', msg: '', ts: Date.now() }; renderKeyChips();
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${$('selectModel').value}:generateContent?key=${k}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }], generationConfig: { maxOutputTokens: 1 } })
+        });
+        if (res.ok) markKey(k, 'ok');
+        else {
+          let msg = `HTTP ${res.status}`; try { msg = (await res.json()).error?.message || msg; } catch (_) {}
+          const e = new Error(msg); e.status = res.status;
+          markKey(k, classifyErr(e), friendlyError(e));
+        }
+      } catch (e) { markKey(k, 'error', friendlyError(e)); }
+    }
+    async function recheckKeys() {
+      const keys = inputKeys().filter(k => KEY_RE.test(k));
+      if (!keys.length) { toast('Chưa có API key hợp lệ để kiểm tra.'); return; }
+      const btn = $('btnRecheck'); btn.disabled = true; btn.classList.add('opacity-50');
+      for (const k of keys) await checkOneKey(k);
+      btn.disabled = false; btn.classList.remove('opacity-50');
+      const dead = keys.filter(isDead).length;
+      toast(`Kiểm tra xong: ${keys.length - dead} dùng được, ${dead} lỗi.`, dead ? 'warn' : 'success');
+    }
+    // Tự nhận diện khi dán / gõ key vào ô danh sách
+    let inputTimer = null, checking = false, again = false;
+    function onKeyInput() { renderKeyChips(); clearTimeout(inputTimer); inputTimer = setTimeout(autoCheckKeys, 900); }
+    async function autoCheckKeys() {
+      if (checking) { again = true; return; }
+      checking = true;
+      try {
+        do {
+          again = false;
+          const keys = inputKeys();
+          if (!keys.length) break;
+          for (const k of keys.filter(k => KEY_RE.test(k) && keyState(k) === 'unknown')) await checkOneKey(k);
+          if (keys.every(k => KEY_RE.test(k)) && JSON.stringify(keys) !== JSON.stringify(apiKeys)) {
+            saveKeysDirectly();
+            const ok = keys.filter(k => !isDead(k)).length;
+            toast(`Đã nhận ${keys.length} key: ${ok} dùng được, ${keys.length - ok} lỗi. Đã tự động lưu.`, ok ? 'success' : 'warn');
+          }
+        } while (again);
+      } finally { checking = false; }
+    }
+    window.addEventListener('DOMContentLoaded', () => { const ta = $('directKeyInput'); if (ta) ta.addEventListener('input', onKeyInput); });
+    setInterval(() => { try { renderKeyChips(); } catch (e) {} }, 30000);
 
     // --- Quản trị ---
     function openAdmin() {
@@ -1031,6 +1137,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       let maxAttempts = Math.max(2, apiKeys.length * 2);
 
       while (attempts < maxAttempts) {
+        if (apiKeys.length > 1 && isDead(apiKeys[currentKeyIdx])) rotateKey();
         const key = getActiveKey();
         try {
           const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
@@ -1060,10 +1167,12 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           const resData = await res.json();
           const outText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
           if (!outText) throw new Error("AI không trả về văn bản.");
+          markKey(key, 'ok');
           return outText;
 
         } catch (err) {
           lastErr = err;
+          if (err.status && key) markKey(key, classifyErr(err), friendlyError(err));
           log(`Key #${currentKeyIdx + 1}: ${friendlyError(err)}${apiKeys.length > 1 ? ' → đổi key' : ' → thử lại'}`, 'warn');
           rotateKey();
           await new Promise(r => setTimeout(r, 2000));
