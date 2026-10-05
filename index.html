@@ -162,7 +162,7 @@
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
       <div id="dropZone" onclick="triggerFileInput()" class="md:col-span-2 min-h-[210px] border-2 border-dashed border-slate-700 hover:border-blue-500 bg-slate-950/60 hover:bg-slate-900/50 rounded-2xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group">
-        <input type="file" id="hiddenFileInput" accept=".pdf, image/*" class="hidden" onchange="handleFileSelect(event)" />
+        <input type="file" id="hiddenFileInput" multiple accept=".pdf, image/*" class="hidden" onchange="handleFileSelect(event)" />
         <div class="h-10 w-10 rounded-full bg-slate-800 group-hover:bg-blue-600/20 text-slate-300 group-hover:text-blue-400 flex items-center justify-center text-lg transition">
           📂
         </div>
@@ -188,6 +188,16 @@
           </div>
           <label class="relative inline-flex items-center cursor-pointer shrink-0">
             <input type="checkbox" id="optHeaderFooter" class="sr-only peer" checked />
+            <div class="w-10 h-6 bg-slate-700 rounded-full transition peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/50 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-all peer-checked:after:translate-x-4"></div>
+          </label>
+        </div>
+        <div class="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
+          <div>
+            <p class="text-xs font-semibold text-slate-200 leading-tight">Dò hình vẽ chính xác hơn</p>
+            <p class="text-[10px] text-slate-500 mt-0.5">Gọi thêm 1 lượt cho trang có hình</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox" id="optFigDetect" class="sr-only peer" checked />
             <div class="w-10 h-6 bg-slate-700 rounded-full transition peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/50 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-all peer-checked:after:translate-x-4"></div>
           </label>
         </div>
@@ -222,6 +232,22 @@
         <label class="flex items-center gap-1.5 text-slate-400">đến <input id="pageTo" type="number" min="1" value="1" class="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" /></label>
         <span id="rangeTotal" class="text-slate-500"></span>
         <button onclick="resetRange()" class="ml-auto text-blue-400 hover:text-blue-300 font-medium">Chọn tất cả</button>
+      </div>
+
+      <!-- Hàng đợi ảnh -->
+      <div id="imageQueuePanel" class="flex-col gap-3 border border-slate-800 rounded-xl p-3 bg-slate-950/80" style="display:none">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="font-bold text-slate-200">🖼️ Hàng đợi ảnh</span>
+            <span id="queueCount" class="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/30 text-[10px] font-semibold">0 ảnh</span>
+            <span class="text-slate-500 text-[11px]">Kéo thả hoặc bấm ◀ ▶ để đổi thứ tự · mỗi ảnh là 1 trang Word · dán thêm bằng Ctrl+V</span>
+          </div>
+          <div class="flex items-center gap-3 text-[11px] font-medium">
+            <button id="btnRemoveDone" onclick="removeDone()" class="text-emerald-400 hover:text-emerald-300" style="display:none">✓ Xóa ảnh đã xong</button>
+            <button onclick="clearSelectedFile()" class="text-rose-400 hover:text-rose-300">✕ Xóa tất cả</button>
+          </div>
+        </div>
+        <div id="queueGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5"></div>
       </div>
 
       <!-- Preview ảnh/PDF -->
@@ -293,7 +319,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 | Cột 1 | Cột 2 |
 |---|---|
 | Dữ liệu 1 | Dữ liệu 2 |
-6. Nếu có hình vẽ hình học hoặc đồ thị, đánh dấu tọa độ: [IMAGE: ymin, xmin, ymax, xmax]`;
+6. Nếu trang có hình vẽ (hình học, đồ thị, sơ đồ), KHÔNG mô tả hình bằng chữ. Tại đúng vị trí hình xuất hiện (theo thứ tự đọc), viết MỘT dòng riêng: [IMAGE: ymin, xmin, ymax, xmax]. Tọa độ là SỐ NGUYÊN từ 0 đến 1000 theo chiều cao và chiều rộng của cả trang (gốc ở góc trên bên trái), KHÔNG dùng số thập phân, KHÔNG dùng phần trăm. Khung phải bao trọn hình, gồm trục tọa độ, nhãn điểm (A, B, C...), số trên trục; không bao gồm chữ của đề bài. Ví dụ: [IMAGE: 320, 450, 610, 880]. Không coi bảng số liệu hay công thức là hình.`;
 
     let apiKeys = [];
     let currentKeyIdx = 0;
@@ -357,24 +383,23 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       $('chipDone').textContent = done;
     }
 
-    function showBanner(type, text, btnLabel, btnFn) {
+    function showBanner(type, text, a, b) {
+      const actions = Array.isArray(a) ? a : (a ? [{ label: a, fn: b }] : []);
       const cls = type === 'error' ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
         : type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
         : 'bg-amber-500/10 border-amber-500/30 text-amber-300';
-      const b = $('resultBanner');
-      b.className = `flex flex-wrap items-center gap-2 text-xs rounded-xl border px-3 py-2 ${cls}`;
-      b.innerHTML = '';
+      const box = $('resultBanner');
+      box.className = `flex flex-wrap items-center gap-2 text-xs rounded-xl border px-3 py-2 ${cls}`;
+      box.innerHTML = '';
       const sp = document.createElement('span');
-      sp.className = 'flex-1 min-w-[180px]';
-      sp.textContent = text;
-      b.appendChild(sp);
-      if (btnLabel) {
+      sp.className = 'flex-1 min-w-[180px]'; sp.textContent = text; box.appendChild(sp);
+      const wrap = document.createElement('div'); wrap.className = 'flex flex-wrap items-center gap-1.5';
+      actions.forEach(x => {
         const bt = document.createElement('button');
-        bt.className = 'px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 font-semibold transition';
-        bt.textContent = btnLabel;
-        bt.onclick = btnFn;
-        b.appendChild(bt);
-      }
+        bt.className = x.primary ? 'px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition' : 'px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 font-semibold transition';
+        bt.textContent = x.label; bt.onclick = x.fn; wrap.appendChild(bt);
+      });
+      if (actions.length) box.appendChild(wrap);
     }
 
     function friendlyError(err) {
@@ -499,7 +524,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       });
       dropZone.addEventListener('drop', (e) => {
         const files = e.dataTransfer.files;
-        if (files && files.length > 0) handleFileObject(files[0]);
+        if (files && files.length > 0) handleFiles([...files]);
       }, false);
     }
 
@@ -511,8 +536,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           if (item.type.includes('image')) {
             const blob = item.getAsFile();
             processImageFile(blob, 'clipboard_math_image.png');
-            log('Đã dán ảnh từ Clipboard thành công (Ctrl+V)!');
-            break;
+            log('Đã thêm ảnh từ Clipboard vào hàng đợi (Ctrl+V).');
           }
         }
       });
@@ -538,13 +562,15 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     }
 
     function handleFileSelect(e) {
-      const file = e.target.files[0];
-      if (file) handleFileObject(file);
+      const files = [...e.target.files];
+      if (files.length) handleFiles(files);
+      e.target.value = '';
     }
 
     async function handleFileObject(file) {
       if (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')) {
         isPdfFile = true;
+        imageQueue = []; renderQueue();
         selectedFileBlob = file;
         const buffer = await file.arrayBuffer();
         pdfDocGlobal = await pdfjsLib.getDocument(new Uint8Array(buffer)).promise;
@@ -566,30 +592,111 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       }
     }
 
-    function processImageFile(blob, name) {
-      isPdfFile = false;
-      pdfDocGlobal = null;
-      selectedFileBlob = blob;
-      $('rangeRow').classList.add('hidden');
+    // ===== HÀNG ĐỢI NHIỀU ẢNH (mỗi ảnh = 1 trang Word, đổi thứ tự được) =====
+    let imageQueue = [], qSeq = 0, ocrRunning = false, queueChain = Promise.resolve(), dragId = null;
+    const MAX_SIDE = 2600;
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        imageBase64Global = e.target.result.split(',')[1];
-        document.getElementById('fileInfoBadge').textContent = `🖼️ Đã chọn Ảnh: ${name}`;
-        document.getElementById('fileInfoBadge').className = 'flex-1 truncate text-xs text-emerald-400 font-medium px-2';
-        
-        const previewContainer = document.getElementById('previewContainer');
-        const imgEl = document.getElementById('imagePreview');
-        imgEl.src = e.target.result;
-        imgEl.classList.remove('hidden');
-        previewContainer.classList.remove('hidden');
-        document.getElementById('previewName').textContent = name;
-        document.getElementById('previewPages').textContent = `${(blob.size / 1024).toFixed(1)} KB`;
-      };
-      reader.readAsDataURL(blob);
+    function handleFiles(files) {
+      const pdf = files.find(f => f.type.includes('pdf') || f.name.toLowerCase().endsWith('.pdf'));
+      const imgs = files.filter(f => f.type.startsWith('image/'));
+      if (imgs.length) {
+        if (pdf) toast('Không trộn được PDF và ảnh cùng lúc, chỉ nhận các ảnh.');
+        imgs.forEach(f => processImageFile(f, f.name));
+      } else if (pdf) handleFileObject(pdf);
+    }
+    function processImageFile(blob, name) {
+      if (ocrRunning) { toast('Đang chuyển đổi, chưa thể thêm ảnh.'); return; }
+      isPdfFile = false; pdfDocGlobal = null; selectedFileBlob = blob;
+      $('rangeRow').classList.add('hidden'); $('previewContainer').classList.add('hidden');
+      queueChain = queueChain.then(() => ingestImage(blob, name)).catch(() => toast('Không đọc được ảnh này.', 'error'));
+    }
+    function ingestImage(blob, name) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob), img = new Image();
+        img.onload = () => {
+          const sc = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.max(1, Math.round(img.naturalWidth * sc)), h = Math.max(1, Math.round(img.naturalHeight * sc));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+          const t = document.createElement('canvas'), ts = Math.min(1, 240 / w);
+          t.width = Math.max(1, Math.round(w * ts)); t.height = Math.max(1, Math.round(h * ts));
+          t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+          const id = ++qSeq;
+          imageQueue.push({ id, name: name === 'clipboard_math_image.png' ? `Ảnh dán ${id}` : name, base64: c.toDataURL('image/png').split(',')[1], thumb: t.toDataURL('image/jpeg', 0.75), status: '' });
+          URL.revokeObjectURL(url); renderQueue(); resolve();
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img')); };
+        img.src = url;
+      });
+    }
+    function queueBusy() { if (ocrRunning) { toast('Đang chuyển đổi, chưa thể chỉnh hàng đợi.'); return true; } return false; }
+    function moveItem(id, dir) {
+      if (queueBusy()) return;
+      const i = imageQueue.findIndex(x => x.id === id), j = i + dir;
+      if (i < 0 || j < 0 || j >= imageQueue.length) return;
+      [imageQueue[i], imageQueue[j]] = [imageQueue[j], imageQueue[i]]; renderQueue();
+    }
+    function reorder(fromId, toId) {
+      if (queueBusy()) return;
+      const a = imageQueue.findIndex(x => x.id === fromId), b = imageQueue.findIndex(x => x.id === toId);
+      if (a < 0 || b < 0 || a === b) return;
+      const [m] = imageQueue.splice(a, 1); imageQueue.splice(b, 0, m); renderQueue();
+    }
+    function removeItem(id) { if (queueBusy()) return; imageQueue = imageQueue.filter(x => x.id !== id); renderQueue(); }
+    function removeDone() { if (queueBusy()) return; imageQueue = imageQueue.filter(x => x.status !== 'done'); renderQueue(); }
+
+    function renderQueue() {
+      const panel = $('imageQueuePanel'), grid = $('queueGrid'), badge = $('fileInfoBadge');
+      if (!imageQueue.length) {
+        panel.style.display = 'none'; grid.innerHTML = '';
+        if (!isPdfFile) {
+          selectedFileBlob = null;
+          badge.textContent = 'Chưa chọn file (Nhấn Ctrl+V để dán ảnh bất cứ lúc nào)';
+          badge.className = 'flex-1 min-w-[200px] truncate text-xs text-slate-400 italic px-2';
+        }
+        return;
+      }
+      panel.style.display = 'flex';
+      $('queueCount').textContent = `${imageQueue.length} ảnh`;
+      $('btnRemoveDone').style.display = imageQueue.some(x => x.status === 'done') ? 'inline-block' : 'none';
+      badge.textContent = `🖼️ ${imageQueue.length} ảnh trong hàng đợi`;
+      badge.className = 'flex-1 min-w-[200px] truncate text-xs text-emerald-400 font-medium px-2';
+      grid.innerHTML = '';
+      imageQueue.forEach((it, i) => {
+        const card = document.createElement('div');
+        card.draggable = !ocrRunning; card.dataset.id = it.id;
+        card.className = 'relative rounded-xl border bg-slate-900 overflow-hidden transition ' + (it.status === 'done' ? 'border-emerald-500/60' : it.status === 'fail' ? 'border-rose-500/70' : it.status === 'skip' ? 'border-slate-500 opacity-60' : 'border-slate-700 hover:border-blue-500/60');
+        const img = document.createElement('img');
+        img.src = it.thumb; img.draggable = false; img.className = 'h-24 w-full object-cover bg-slate-950 cursor-grab';
+        const num = document.createElement('span');
+        num.className = 'absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md'; num.textContent = `#${i + 1}`;
+        card.append(img, num);
+        if (it.status) {
+          const st = document.createElement('span');
+          st.className = 'absolute top-1 right-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ' + (it.status === 'done' ? 'bg-emerald-500 text-slate-950' : it.status === 'skip' ? 'bg-slate-500 text-white' : 'bg-rose-500 text-white');
+          st.textContent = it.status === 'done' ? '✓ xong' : it.status === 'skip' ? '⤼ bỏ qua' : '✕ lỗi'; card.appendChild(st);
+        }
+        const bar = document.createElement('div');
+        bar.className = 'flex items-center gap-1 px-1 py-1 bg-slate-950/80';
+        const mk = (txt, cls, fn, dis, title) => { const b = document.createElement('button'); b.textContent = txt; b.title = title || ''; b.disabled = !!dis; b.className = `px-1.5 py-0.5 rounded text-[11px] font-bold disabled:opacity-30 ${cls}`; b.onclick = fn; return b; };
+        const nm = document.createElement('span');
+        nm.className = 'flex-1 truncate text-[10px] text-slate-400 text-center'; nm.textContent = it.name; nm.title = it.name;
+        bar.append(mk('◀', 'bg-slate-800 hover:bg-slate-700 text-slate-200', () => moveItem(it.id, -1), i === 0, 'Đưa lên trước'), nm,
+          mk('▶', 'bg-slate-800 hover:bg-slate-700 text-slate-200', () => moveItem(it.id, 1), i === imageQueue.length - 1, 'Đưa ra sau'),
+          mk('✕', 'bg-rose-600/80 hover:bg-rose-500 text-white', () => removeItem(it.id), false, 'Xóa ảnh này'));
+        card.appendChild(bar);
+        card.addEventListener('dragstart', (e) => { dragId = it.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(it.id)); card.classList.add('opacity-40'); });
+        card.addEventListener('dragend', () => { dragId = null; card.classList.remove('opacity-40'); });
+        card.addEventListener('dragover', (e) => { if (dragId === null) return; e.preventDefault(); card.classList.add('ring-2', 'ring-blue-400'); });
+        card.addEventListener('dragleave', () => card.classList.remove('ring-2', 'ring-blue-400'));
+        card.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); card.classList.remove('ring-2', 'ring-blue-400'); if (dragId !== null) reorder(dragId, it.id); });
+        grid.appendChild(card);
+      });
     }
 
     function clearSelectedFile() {
+      if (queueBusy()) return;
+      imageQueue = []; isPdfFile = false; renderQueue();
       $('rangeRow').classList.add('hidden');
       selectedFileBlob = null;
       pdfDocGlobal = null;
@@ -999,6 +1106,86 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       toast('Đã đổi mật khẩu quản trị.', 'success');
     }
 
+    // ===== NHẬN DIỆN & CẮT HÌNH VẼ CHUẨN HƠN =====
+    const FIG_TAG_RE = /\[\s*(?:IMAGE|HÌNH|HINH|FIGURE|BOX)\s*[:：=]?\s*\[?\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*\]?\s*\]/gi;
+    const DETECT_PROMPT = 'Phát hiện tất cả HÌNH VẼ trong trang này: hình hình học, đồ thị hàm số, sơ đồ, hình minh họa. KHÔNG tính văn bản, công thức hay bảng số liệu. Mỗi hình có một khung bao sát toàn bộ hình, gồm cả trục tọa độ, nhãn điểm (A, B, C...), số trên trục và chú thích nằm sát hình. Trả về JSON thuần: [{"box_2d":[ymin,xmin,ymax,xmax],"label":"..."}] với tọa độ là số nguyên 0 đến 1000 (gốc ở góc trên bên trái), sắp xếp từ trên xuống dưới rồi trái sang phải. Nếu không có hình, trả về [].';
+
+    // Chuẩn hóa về [ymin,xmin,ymax,xmax] số nguyên 0–1000. Tự nhận ra thang 0–1, phần trăm, hoặc điểm ảnh.
+    function normalizeBox(v, w, h, strict) {
+      if (!Array.isArray(v) || v.length !== 4 || v.some(n => !isFinite(n))) return null;
+      if (!strict) {
+        const mx = Math.max(...v);
+        if (mx <= 1.0001) v = v.map(n => n * 1000);
+        else if (mx <= 100) v = v.map(n => n * 10);
+        else if (mx > 1000) v = [v[0] / h * 1000, v[1] / w * 1000, v[2] / h * 1000, v[3] / w * 1000];
+      }
+      let [y1, x1, y2, x2] = v.map(n => Math.min(1000, Math.max(0, n)));
+      if (y1 > y2) [y1, y2] = [y2, y1];
+      if (x1 > x2) [x1, x2] = [x2, x1];
+      if (y2 - y1 < 25 || x2 - x1 < 25) return null;
+      return [y1, x1, y2, x2].map(Math.round);
+    }
+    function boxIou(a, b) {
+      const iy = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])), ix = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+      const inter = iy * ix, uni = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter;
+      return uni > 0 ? inter / uni : 0;
+    }
+    function matchBoxes(tags, det) {
+      const used = new Set();
+      const out = tags.map(t => {
+        if (!t) return undefined;
+        let best = 0, bi = -1;
+        det.forEach((d, j) => { if (used.has(j)) return; const v = boxIou(t, d); if (v > best) { best = v; bi = j; } });
+        if (bi >= 0 && best > 0.2) { used.add(bi); return det[bi]; }
+        return t;
+      });
+      return out.map(r => {
+        if (r !== undefined) return r;
+        const j = det.findIndex((d, k) => !used.has(k));
+        if (j < 0) return null;
+        used.add(j); return det[j];
+      });
+    }
+    async function detectFigureBoxes(b64, modelSel) {
+      const chain = autoChain();
+      const model = modelSel === 'auto' ? chain[Math.min(autoLevel, chain.length - 1)] : modelSel;
+      for (let t = 0; t < Math.min(2, Math.max(1, apiKeys.length)); t++) {
+        const key = getActiveKey(); if (!key) return null;
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: 'image/png', data: b64 } }, { text: DETECT_PROMPT }] }], generationConfig: { temperature: 0, responseMimeType: 'application/json' } })
+          });
+          if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+          const d = await res.json();
+          const txt = (d.candidates?.[0]?.content?.parts || []).map(x => x.text || '').join('').replace(/```json|```/g, '').trim();
+          const arr = JSON.parse(txt);
+          return (Array.isArray(arr) ? arr : []).map(o => normalizeBox((o.box_2d || o.box || []).map(Number), 1, 1, true)).filter(Boolean).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+        } catch (e) { if (e.status) markKey(key, classifyErr(e), friendlyError(e)); rotateKey(); }
+      }
+      return null;
+    }
+    // Chuẩn hóa mọi thẻ [IMAGE: ...] của một trang; dò lại bằng box_2d nếu bật
+    async function processFigures(text, b64, canvas, modelSel) {
+      const tags = [...text.matchAll(FIG_TAG_RE)];
+      if (!tags.length) return text.replace(/\[\s*IMAGE[^\]]*\]/gi, '');
+      const w = canvas.width, h = canvas.height;
+      const boxes = tags.map(t => normalizeBox([t[1], t[2], t[3], t[4]].map(x => parseFloat(x.replace(',', '.'))), w, h));
+      let det = null;
+      if ($('optFigDetect').checked) { log(`Dò chính xác ${tags.length} hình vẽ…`); det = await detectFigureBoxes(b64, modelSel); }
+      const finalBoxes = det && det.length ? matchBoxes(boxes, det) : boxes;
+      let k = 0;
+      const out = text.replace(FIG_TAG_RE, () => { const b = finalBoxes[k++]; return b ? `[IMAGE: ${b.join(', ')}]` : ''; });
+      const ok = finalBoxes.filter(Boolean).length;
+      if (ok < tags.length) log(`Có ${tags.length - ok} hình không xác định được vị trí, đã bỏ qua.`, 'warn');
+      return out.replace(/\[\s*IMAGE(?![: ]+\d+, \d+, \d+, \d+\])[^\]]*\]/gi, '');
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      const tg = $('optFigDetect');
+      try { const v = localStorage.getItem('ocr_fig_detect'); if (v !== null) tg.checked = v === '1'; } catch (e) {}
+      tg.addEventListener('change', () => { try { localStorage.setItem('ocr_fig_detect', tg.checked ? '1' : '0'); } catch (e) {} });
+    });
+
     // --- NỘI DUNG BỎ QUA & ĐẦU/CHÂN TRANG ---
     function getIgnoreList() { return ($('ignoreInput').value || '').split('\n').map(x => x.trim()).filter(Boolean); }
     function buildSystemPrompt() {
@@ -1055,9 +1242,23 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       });
     }
 
-    async function startBatchOCR() {
+    let resumeCtx = null;
+    function resumeRun(skip) {
+      if (ocrRunning || !resumeCtx) return;
+      const c = resumeCtx;
+      if (isPdfFile) {
+        const f = c.stoppedAt + (skip ? 1 : 0);
+        if (f > c.to) { toast('Không còn trang nào để chạy tiếp.'); return; }
+        $('pageFrom').value = f; $('pageTo').value = c.to;
+      } else if (skip) {
+        const it = imageQueue.find(x => x.id === c.itemId);
+        if (it) { it.status = 'skip'; renderQueue(); }
+      }
+      startBatchOCR(true);
+    }
+    async function startBatchOCR(resume) {
       if (!session) { toast('Vui lòng đăng nhập để sử dụng.'); openAuth('login'); return; }
-      if (!selectedFileBlob) { toast('Vui lòng chọn file PDF hoặc dán ảnh trước.'); return; }
+      if (!selectedFileBlob && !imageQueue.length) { toast('Vui lòng chọn file PDF hoặc dán ảnh trước.'); return; }
       if (!getActiveKey()) { toast('Vui lòng nhập ít nhất một Gemini API Key.'); $('directKeyInput').focus(); return; }
 
       let from = 1, to = 1;
@@ -1068,7 +1269,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         if (from > to) { toast('"Từ trang" phải nhỏ hơn hoặc bằng "đến trang".'); return; }
         $('pageFrom').value = from; $('pageTo').value = to;
       }
-      const total = isPdfFile ? to - from + 1 : 1;
+      const todo = isPdfFile ? null : imageQueue.map((x, idx) => idx).filter(idx => !resume || !['done', 'skip'].includes(imageQueue[idx].status));
+      const total = isPdfFile ? to - from + 1 : todo.length;
+      if (!total) { toast('Không còn ảnh nào cần chạy tiếp.'); return; }
       const model = $('selectModel').value;
       const fmt = document.querySelector('input[name="math_format"]:checked').value;
       const pagesData = [];
@@ -1080,25 +1283,32 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       $('runDot').className = 'h-2 w-2 rounded-full bg-emerald-400 animate-pulse';
       $('resultBanner').className = 'hidden';
       $('chipFail').textContent = '0';
-      stopRequested = false; autoLevel = 0;
+      stopRequested = false; autoLevel = 0; ocrRunning = true;
+      resumeCtx = null;
+      imageQueue.forEach(x => { if (!resume || x.status === 'fail') x.status = ''; }); renderQueue();
       setProgress(0, total);
-      log(isPdfFile ? `Bắt đầu OCR trang ${from}–${to} (${total} trang) · ${model === 'auto' ? 'tự động (2.5 → cao dần)' : model}` : `Bắt đầu OCR ảnh · ${model === 'auto' ? 'tự động (2.5 → cao dần)' : model}`);
+      log(isPdfFile ? `Bắt đầu OCR trang ${from}–${to} (${total} trang) · ${model === 'auto' ? 'tự động (2.5 → cao dần)' : model}` : `Bắt đầu OCR ${total} ảnh · ${model === 'auto' ? 'tự động (2.5 → cao dần)' : model}`);
 
       try {
         for (let i = 0; i < total; i++) {
-          const p = from + i;
+          const qi = isPdfFile ? -1 : todo[i];
+          const p = isPdfFile ? from + i : qi + 1;
           if (stopRequested) { stoppedAt = p; reason = 'bạn đã dừng'; break; }
           try {
             let canvas, b64;
             if (isPdfFile) { canvas = await renderPdfPage(p); b64 = canvas.toDataURL('image/png').split(',')[1]; }
-            else { b64 = imageBase64Global; canvas = await imageToCanvas(b64); }
+            else { b64 = imageQueue[qi].base64; canvas = await imageToCanvas(b64); }
             setProgress(i, total, `Trang ${p} · đang nhận dạng…`);
             const raw = await callGeminiSinglePageWithRetry(b64, model);
-            pagesData.push({ pageNum: p, canvas, text: applyIgnore(cleanAIText(raw)) });
+            let pageText = applyIgnore(cleanAIText(raw));
+            pageText = await processFigures(pageText, b64, canvas, model);
+            pagesData.push({ pageNum: p, canvas, text: pageText });
             setProgress(i + 1, total);
-            log(`Trang ${p} hoàn tất`, 'success');
+            if (!isPdfFile) { imageQueue[qi].status = 'done'; renderQueue(); }
+            log(`${isPdfFile ? 'Trang' : 'Ảnh'} ${p} hoàn tất`, 'success');
           } catch (err) {
             stoppedAt = p; reason = err.message;
+            if (!isPdfFile && imageQueue[qi]) { imageQueue[qi].status = 'fail'; renderQueue(); }
             $('chipFail').textContent = '1';
             log(`Trang ${p} thất bại: ${reason}`, 'error');
             break;
@@ -1111,19 +1321,24 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         }
 
         const n = pagesData.length;
+        const unit = isPdfFile ? 'trang' : 'ảnh';
         if (stoppedAt === null) {
-          showBanner('success', `Hoàn tất: đã xuất ${n} trang${isPdfFile ? ` (${from}–${to})` : ''}.`);
-        } else if (n > 0) {
-          if (isPdfFile) $('pageFrom').value = stoppedAt;
-          showBanner('warn', `Đã xuất ${n} trang (${pagesData[0].pageNum}–${pagesData[n - 1].pageNum}). Dừng ở trang ${stoppedAt}: ${reason}.` + (isPdfFile ? ` Ô "Từ trang" đã đặt sẵn = ${stoppedAt}.` : ''),
-            'Nhập API key mới', () => { $('directKeyInput').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('directKeyInput').focus(); });
+          showBanner('success', `Hoàn tất: đã xuất ${n} ${unit}${isPdfFile ? ` (${from}–${to})` : ''}.`);
+          resumeCtx = null;
         } else {
-          showBanner('error', `Chưa xuất được trang nào: ${reason}.`, 'Nhập API key mới', () => { $('directKeyInput').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('directKeyInput').focus(); });
+          const userStopped = reason === 'bạn đã dừng';
+          resumeCtx = { stoppedAt, to, userStopped, itemId: isPdfFile ? null : (imageQueue[stoppedAt - 1] || {}).id };
+          if (isPdfFile) $('pageFrom').value = stoppedAt;
+          const acts = [{ label: `▶ Chạy tiếp từ ${unit} ${stoppedAt}`, fn: () => resumeRun(false), primary: true }];
+          if (!userStopped) acts.push({ label: `⤼ Bỏ qua ${unit} ${stoppedAt}`, fn: () => resumeRun(true) });
+          acts.push({ label: 'Nhập API key mới', fn: () => { $('directKeyInput').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('directKeyInput').focus(); } });
+          showBanner(n > 0 ? 'warn' : 'error', `${n > 0 ? `Đã xuất ${n} ${unit}. ` : `Chưa xuất được ${unit} nào. `}Dừng ở ${unit} ${stoppedAt}: ${reason}.`, acts);
         }
       } catch (err) {
         log(`Lỗi không mong muốn: ${err.message}`, 'error');
         showBanner('error', err.message);
       } finally {
+        ocrRunning = false; renderQueue();
         btnRun.disabled = false; btnRun.classList.remove('opacity-50', 'cursor-not-allowed');
         $('btnStop').classList.add('hidden');
         $('runDot').className = 'h-2 w-2 rounded-full bg-slate-600';
@@ -1134,7 +1349,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 
     async function callGeminiWithModel(base64Data, model, onePass) {
       let lastErr = null;
-      let attempts = 0;
+      let attempts = 0, emptyTries = 0;
       let maxAttempts = onePass ? Math.max(1, apiKeys.length) : Math.max(2, apiKeys.length * 2);
 
       while (attempts < maxAttempts) {
@@ -1166,8 +1381,12 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           }
 
           const resData = await res.json();
-          const outText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!outText) throw new Error("AI không trả về văn bản.");
+          const cand = resData.candidates?.[0];
+          const outText = (cand?.content?.parts || []).map(x => x.text || '').join('').trim();
+          if (!outText) {
+            const why = cand?.finishReason || resData.promptFeedback?.blockReason;
+            const ee = new Error('AI không trả về văn bản' + (why ? ` (${why})` : '') + '.'); ee.empty = true; throw ee;
+          }
           markKey(key, 'ok');
           return outText;
 
@@ -1178,11 +1397,12 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           rotateKey();
           await new Promise(r => setTimeout(r, classifyErr(err) === 'quota' ? 300 : 2000));
           attempts++;
+          if (err.empty && ++emptyTries >= 2) attempts = maxAttempts;
         }
       }
-      const e = new Error(`mọi API key đều lỗi (${friendlyError(lastErr)})`);
+      const e = new Error(lastErr && lastErr.empty ? lastErr.message.replace(/\.$/, '') : `mọi API key đều lỗi (${friendlyError(lastErr)})`);
       e.status = lastErr && lastErr.status; e.shortReason = friendlyError(lastErr);
-      e.fallback = [429, 503, 404].includes(e.status) || classifyErr(lastErr) === 'quota';
+      e.fallback = [429, 503, 404].includes(e.status) || classifyErr(lastErr) === 'quota' || !!(lastErr && lastErr.empty);
       throw e;
     }
 
@@ -1656,6 +1876,8 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib){
     // --- 6. CROP HÌNH & XUẤT DOCX THẬT (Word Equation / OMML) ---
     function cropCanvasToImage(sourceCanvas, ymin, xmin, ymax, xmax) {
       try {
+        const pad = 12;
+        ymin = Math.max(0, ymin - pad); xmin = Math.max(0, xmin - pad); ymax = Math.min(1000, ymax + pad); xmax = Math.min(1000, xmax + pad);
         const sx = Math.max(0, xmin * sourceCanvas.width / 1000);
         const sy = Math.max(0, ymin * sourceCanvas.height / 1000);
         const cw = Math.max(1, Math.round((xmax - xmin) * sourceCanvas.width / 1000));
@@ -1679,7 +1901,7 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib){
           return cropCanvasToImage(page.canvas, ymin, xmin, ymax, xmax);
         };
         const blob = await buildDocxBlob(pagesData, mathFormat, getImage, JSZip);
-        const fileName = `DeThi_OCR_${mathFormat.toUpperCase()}${isPdfFile ? `_tr${pagesData[0].pageNum}-${pagesData[pagesData.length - 1].pageNum}` : ''}.docx`;
+        const fileName = `DeThi_OCR_${mathFormat.toUpperCase()}${isPdfFile ? `_tr${pagesData[0].pageNum}-${pagesData[pagesData.length - 1].pageNum}` : (pagesData.length < imageQueue.length ? `_anh${pagesData[0].pageNum}-${pagesData[pagesData.length - 1].pageNum}` : '')}.docx`;
         saveAs(blob, fileName);
         log(`🎉 XUẤT FILE HOÀN TẤT! Đã tải về: ${fileName}`);
         if (mathFormat === 'mathtype') {
