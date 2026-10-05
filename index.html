@@ -47,7 +47,7 @@
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <div id="modelBox" class="items-center gap-1.5" style="display:none">
+        <div id="modelBox" class="flex items-center gap-1.5">
           <span class="hidden lg:inline text-[10px] font-semibold uppercase tracking-wider text-slate-400">Mô hình AI</span>
           <select id="selectModel" class="bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50">
             <option value="auto">🔄 Tự động (2.5 → cao dần)</option>
@@ -77,23 +77,13 @@
     
     
 
-    <!-- MÀN HÌNH KHÓA (chưa đăng nhập) -->
-    <div id="lockScreen" class="flex flex-col items-center justify-center text-center gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-10 shadow-xl">
-      <div class="h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center text-2xl">🔒</div>
-      <div>
-        <h2 class="text-base font-bold text-white">Vui lòng đăng nhập để sử dụng</h2>
-        <p class="text-xs text-slate-400 mt-1">Tài khoản mới đăng ký cần được quản trị viên phê duyệt trước khi sử dụng.</p>
+    <div id="appBody" class="flex flex-col gap-4">
+      <div id="guestBanner" class="flex-wrap items-center gap-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-xs text-cyan-100" style="display:flex">
+        <span class="text-base">🔓</span>
+        <span class="flex-1 min-w-[200px]"><b class="text-white">Chế độ khách:</b> 1 API key · tối đa 2 ảnh · PDF tối đa 2 trang. Đăng nhập để dùng không giới hạn.</span>
+        <button onclick="openAuth('login')" class="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition">Đăng nhập</button>
+        <button onclick="openAuth('register')" class="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 font-semibold transition">Đăng ký</button>
       </div>
-      <div class="flex flex-col items-stretch gap-2 w-full max-w-xs">
-        <button onclick="googleLogin()" class="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold shadow transition"><svg viewBox="0 0 48 48" class="h-4 w-4 shrink-0"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Tiếp tục với Google</button>
-        <div class="flex gap-2 [&>button]:flex-1">
-        <button onclick="openAuth('login')" class="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow transition">🔑 Đăng nhập</button>
-        <button onclick="openAuth('register')" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition">📝 Đăng ký</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="appBody" class="flex-col gap-4" style="display:none">
 
     <!-- 1. KHU VỰC NHẬP API KEYS TRỰC TIẾP -->
     <section class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-xl flex flex-col gap-3">
@@ -116,11 +106,16 @@
         </div>
       </div>
       <textarea id="directKeyInput" rows="2" placeholder="Dán API Key vào đây (mỗi dòng một key)..." class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"></textarea>
-      <div id="keyChipRow" class="flex flex-wrap items-center gap-1.5" style="display:none">
-        <div id="keyChips" class="flex flex-wrap items-center gap-1.5"></div>
-        <button id="btnRecheck" onclick="recheckKeys()" class="ml-auto px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition">↻ Kiểm tra lại</button>
+      <div id="keyChipRow" class="flex flex-col gap-2" style="display:none">
+        <div class="flex flex-wrap items-center justify-end gap-1.5">
+          <button id="btnReveal" onclick="toggleRevealAll()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition">👁 Hiện key</button>
+          <button id="btnEdit" onclick="toggleEditKeys()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition">✎ Sửa key</button>
+          <button id="btnRecheck" onclick="recheckKeys()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-semibold transition">↻ Kiểm tra lại</button>
+        </div>
+        <div id="keyChips" class="flex flex-col gap-1.5"></div>
       </div>
       <p class="text-[11px] text-slate-500">Bấm <b class="text-slate-300">Lấy API key</b> → đăng nhập Google → tạo key → bấm Copy → quay lại trang này, key sẽ tự được dán và lưu.</p>
+      <p id="keyGuestNote" class="text-[11px] text-cyan-300" style="display:block">🔓 Chế độ khách: chỉ dùng được 1 API key. Đăng nhập để thêm nhiều key và đồng bộ.</p>
     </section>
 
     <!-- 2. TÙY CHỌN 3 ĐỊNH DẠNG CÔNG THỨC TOÁN -->
@@ -448,12 +443,13 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     function saveKeysDirectly() {
       const raw = document.getElementById('directKeyInput').value.trim();
       apiKeys = raw.split(/[\s,]+/).map(k => k.trim()).filter(k => k.length > 0);
+      if (!session && apiKeys.length > LIMITS.keys) { apiKeys = apiKeys.slice(0, LIMITS.keys); document.getElementById('directKeyInput').value = apiKeys.join('\n'); needLogin('Chế độ khách chỉ dùng 1 API key.'); }
       currentKeyIdx = 0;
-      localStorage.setItem('gemini_ocr_keys', JSON.stringify(apiKeys));
+      localStorage.setItem(session ? 'gemini_ocr_keys' : 'gemini_guest_key', JSON.stringify(apiKeys));
       document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
       renderKeyChips();
 
-      if (db) {
+      if (db && session) {
         db.ref('ocr_config/api_keys').set(apiKeys)
           .then(() => log(`☁️ Đã lưu ${apiKeys.length} API Keys lên Firebase.`))
           .catch((e) => log(`⚠️ Lỗi lưu Firebase: ${e.message}`));
@@ -467,7 +463,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       if (apiKeys.length === 0) {
         const raw = document.getElementById('directKeyInput').value.trim();
         if (raw) {
-          apiKeys = raw.split(/[\s,]+/).map(k => k.trim()).filter(k => k.length > 0);
+          apiKeys = raw.split(/[\s,]+/).map(k => k.trim()).filter(k => k.length > 0).slice(0, session ? 1e9 : LIMITS.keys);
           updateKeyUI();
         }
       }
@@ -569,11 +565,13 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 
     async function handleFileObject(file) {
       if (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')) {
+        const buffer = await file.arrayBuffer();
+        const doc = await pdfjsLib.getDocument(new Uint8Array(buffer)).promise;
+        if (!session && doc.numPages > LIMITS.pdfPages) { needLogin(`File PDF có ${doc.numPages} trang. Chế độ khách chỉ chuyển tối đa ${LIMITS.pdfPages} trang.`); return; }
         isPdfFile = true;
         imageQueue = []; renderQueue();
         selectedFileBlob = file;
-        const buffer = await file.arrayBuffer();
-        pdfDocGlobal = await pdfjsLib.getDocument(new Uint8Array(buffer)).promise;
+        pdfDocGlobal = doc;
 
         document.getElementById('fileInfoBadge').textContent = `📄 Đã chọn PDF: ${file.name}`;
         document.getElementById('fileInfoBadge').className = 'flex-1 truncate text-xs text-emerald-400 font-medium px-2';
@@ -601,7 +599,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       const imgs = files.filter(f => f.type.startsWith('image/'));
       if (imgs.length) {
         if (pdf) toast('Không trộn được PDF và ảnh cùng lúc, chỉ nhận các ảnh.');
-        imgs.forEach(f => processImageFile(f, f.name));
+        let list = imgs;
+        if (!session) { const room = Math.max(0, LIMITS.images - imageQueue.length); if (imgs.length > room) { list = imgs.slice(0, room); needLogin(`Chế độ khách chỉ thêm tối đa ${LIMITS.images} ảnh.`); } }
+        list.forEach(f => processImageFile(f, f.name));
       } else if (pdf) handleFileObject(pdf);
     }
     function processImageFile(blob, name) {
@@ -611,6 +611,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       queueChain = queueChain.then(() => ingestImage(blob, name)).catch(() => toast('Không đọc được ảnh này.', 'error'));
     }
     function ingestImage(blob, name) {
+      if (!session && imageQueue.length >= LIMITS.images) { needLogin(`Chế độ khách chỉ thêm tối đa ${LIMITS.images} ảnh.`); return Promise.resolve(); }
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(blob), img = new Image();
         img.onload = () => {
@@ -657,7 +658,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         return;
       }
       panel.style.display = 'flex';
-      $('queueCount').textContent = `${imageQueue.length} ảnh`;
+      $('queueCount').textContent = session ? `${imageQueue.length} ảnh` : `${imageQueue.length}/${LIMITS.images} ảnh · khách`;
       $('btnRemoveDone').style.display = imageQueue.some(x => x.status === 'done') ? 'inline-block' : 'none';
       badge.textContent = `🖼️ ${imageQueue.length} ảnh trong hàng đợi`;
       badge.className = 'flex-1 min-w-[200px] truncate text-xs text-emerald-400 font-medium px-2';
@@ -780,8 +781,8 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         <div class="flex flex-col gap-3">
           ${reg ? `<input id="auName" class="${INP}" placeholder="Họ và tên" />` : ''}
           <input id="auUser" class="${INP}" placeholder="Tên đăng nhập" autocomplete="username" />
-          <input id="auPass" type="password" class="${INP}" placeholder="Mật khẩu" autocomplete="${reg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')submitAuth('${mode}')" />
-          ${reg ? `<input id="auPass2" type="password" class="${INP}" placeholder="Nhập lại mật khẩu" onkeydown="if(event.key==='Enter')submitAuth('register')" />` : ''}
+          ${pwInput('auPass', 'Mật khẩu', reg ? 'new-password' : 'current-password', `onkeydown="if(event.key==='Enter')submitAuth('${mode}')"`)}
+          ${reg ? pwInput('auPass2', 'Nhập lại mật khẩu', 'new-password', `onkeydown="if(event.key==='Enter')submitAuth('register')"`) : ''}
           <p id="auMsg" class="text-[11px] text-rose-400 min-h-[16px]"></p>
           <button id="auBtn" onclick="submitAuth('${mode}')" class="${BTN}">${reg ? 'Gửi đăng ký' : 'Đăng nhập'}</button>
           ${reg ? '<p class="text-[10px] text-slate-500 text-center">Tên đăng nhập: 3–20 ký tự (chữ thường, số, _). Cần quản trị viên duyệt mới dùng được.</p>' : ''}
@@ -818,18 +819,20 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       finally { const b = $('auBtn'); if (b) b.disabled = false; }
     }
 
+    let keysMode = null;
     function applyAuthState() {
       const on = !!session;
-      $('appBody').style.display = on ? 'flex' : 'none';
-      $('lockScreen').style.display = on ? 'none' : 'flex';
-      $('modelBox').style.display = on ? 'flex' : 'none';
+      $('guestBanner').style.display = on ? 'none' : 'flex';
+      $('keyGuestNote').style.display = on ? 'none' : 'block';
       $('authGuest').style.display = on ? 'none' : 'flex';
       $('authUser').style.display = on ? 'flex' : 'none';
       if (on) {
         $('userName').textContent = session.name;
         $('userRole').textContent = session.role === 'admin' ? '· Quản trị' : '';
-        if (!keysLoaded) { keysLoaded = true; loadKeysDual(); }
       }
+      const mode = on ? 'user' : 'guest';
+      if (mode !== keysMode) { keysMode = mode; if (on) loadKeysDual(); else loadGuestKey(); }
+      renderQueue();
     }
     function logout() {
       session = null; try { localStorage.removeItem('ocr_session'); } catch (e) {} try { firebase.auth().signOut(); } catch (e) {}
@@ -907,7 +910,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         const cur = ta.value.split(/[\s,]+/).map(k => k.trim()).filter(Boolean);
         const add = found.filter(k => !cur.includes(k));
         if (!add.length) { if (!auto) toast('Key này đã có trong danh sách.'); return false; }
-        ta.value = [...cur, ...add].join('\n');
+        ta.value = session ? [...cur, ...add].join('\n') : add[0];
         saveKeysDirectly();
         toast(`Đã dán và lưu ${add.length} key mới. Đang kiểm tra…`, 'success');
         autoCheckKeys();
@@ -958,25 +961,48 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       return 'error';
     }
     function markKey(k, state, msg) { keyStatus[k] = { state, msg: msg || '', ts: Date.now() }; renderKeyChips(); }
+    let keysEditing = false, revealAll = false;
+    const revealed = new Set();
+    function maskKey(k) { return k.length <= 10 ? '•'.repeat(k.length) : k.slice(0, 4) + '•'.repeat(Math.min(24, k.length - 8)) + k.slice(-4); }
+    function toggleRevealAll() { revealAll = !revealAll; revealed.clear(); renderKeyChips(); }
+    function toggleEditKeys() { keysEditing = !keysEditing; renderKeyChips(); if (keysEditing) $('directKeyInput').focus(); }
+    function removeKey(k) {
+      $('directKeyInput').value = inputKeys().filter(x => x !== k).join('\n');
+      delete keyStatus[k]; revealed.delete(k); saveKeysDirectly();
+    }
     function renderKeyChips() {
-      const row = $('keyChipRow'), badge = $('keyHealth');
+      const row = $('keyChipRow'), badge = $('keyHealth'), ta = $('directKeyInput');
       if (!row || !badge) return;
       const keys = inputKeys();
+      ta.style.display = (keysEditing || !keys.length) ? '' : 'none';
       if (!keys.length) { row.style.display = 'none'; badge.style.display = 'none'; return; }
+      row.style.display = 'flex';
+      $('btnReveal').textContent = revealAll ? '🙈 Ẩn key' : '👁 Hiện key';
+      $('btnEdit').textContent = keysEditing ? '✓ Xong' : '✎ Sửa key';
       const cls = {
         ok: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', quota: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
         invalid: 'bg-rose-500/10 text-rose-300 border-rose-500/30', error: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
         unknown: 'bg-slate-800 text-slate-300 border-slate-700', testing: 'bg-blue-500/10 text-blue-300 border-blue-500/30 animate-pulse'
       };
-      const tag = { ok: '✓', quota: '⛔ hết lượt', invalid: '✕ key sai', error: '⚠ lỗi', unknown: '', testing: '…' };
+      const tag = { ok: '✓ dùng được', quota: '⛔ hết lượt', invalid: '✕ key sai', error: '⚠ lỗi', unknown: 'chưa kiểm tra', testing: '… đang kiểm tra' };
+      const list = $('keyChips'); list.style.display = keysEditing ? 'none' : 'flex'; list.innerHTML = '';
       let ok = 0, quota = 0, invalid = 0;
-      $('keyChips').innerHTML = keys.map((k, i) => {
+      const mk = (txt, fn, title, c) => { const b = document.createElement('button'); b.textContent = txt; b.title = title; b.onclick = fn; b.className = `px-1.5 py-0.5 rounded text-[11px] font-semibold ${c}`; return b; };
+      keys.forEach((k, i) => {
         let st = keyState(k); const bad = !KEY_RE.test(k); if (bad) st = 'invalid';
         if (st === 'quota') quota++; else if (st === 'invalid') invalid++; else ok++;
         const reason = bad ? 'Sai định dạng key (thường bắt đầu bằng AIza… hoặc AQ.…)' : (keyStatus[k] && keyStatus[k].msg) || ({ unknown: 'Chưa kiểm tra', ok: 'Hoạt động tốt', testing: 'Đang kiểm tra' }[st] || '');
-        return `<span title="${esc(reason)}" class="px-2 py-0.5 rounded-full border text-[10px] font-mono ${cls[st]}${k === apiKeys[currentKeyIdx] ? ' ring-1 ring-white/30' : ''}">#${i + 1} ${esc(k.slice(0, 6))}… ${tag[st]}</span>`;
-      }).join('');
-      row.style.display = 'flex';
+        const shown = bad || revealAll || revealed.has(k);
+        const r = document.createElement('div');
+        r.className = `flex items-center gap-2 rounded-lg border px-2.5 py-1 ${cls[st]}${k === apiKeys[currentKeyIdx] ? ' ring-1 ring-white/30' : ''}`; r.title = reason;
+        const n = document.createElement('span'); n.className = 'text-[10px] font-bold shrink-0'; n.textContent = `#${i + 1}`;
+        const t = document.createElement('span'); t.className = 'flex-1 min-w-0 truncate font-mono text-[11px] text-slate-100'; t.textContent = shown ? k : maskKey(k);
+        const g = document.createElement('span'); g.className = 'text-[10px] shrink-0'; g.textContent = tag[st];
+        r.append(n, t, g);
+        if (!bad) r.appendChild(mk(shown ? '🙈' : '👁', () => { if (revealed.has(k)) revealed.delete(k); else revealed.add(k); renderKeyChips(); }, shown ? 'Ẩn key này' : 'Hiện key này', 'bg-black/20 hover:bg-black/40'));
+        r.appendChild(mk('✕', () => removeKey(k), 'Xóa key này', 'bg-black/20 hover:bg-rose-600 text-white'));
+        list.appendChild(r);
+      });
       const parts = [`${ok} dùng được`];
       if (quota) parts.push(`${quota} hết lượt`);
       if (invalid) parts.push(`${invalid} key sai`);
@@ -1015,7 +1041,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     }
     // Tự nhận diện khi dán / gõ key vào ô danh sách
     let inputTimer = null, checking = false, again = false;
-    function onKeyInput() { renderKeyChips(); clearTimeout(inputTimer); inputTimer = setTimeout(autoCheckKeys, 900); }
+    function onKeyInput() {
+      if (!session) { const raw = ($('directKeyInput').value || '').split(/[\s,]+/).filter(Boolean); if (raw.length > LIMITS.keys) { $('directKeyInput').value = raw[0]; needLogin('Chế độ khách chỉ dùng 1 API key.'); } }
+      renderKeyChips(); clearTimeout(inputTimer); inputTimer = setTimeout(autoCheckKeys, 900); }
     async function autoCheckKeys() {
       if (checking) { again = true; return; }
       checking = true;
@@ -1031,10 +1059,44 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
             toast(`Đã nhận ${keys.length} key: ${ok} dùng được, ${keys.length - ok} lỗi. Đã tự động lưu.`, ok ? 'success' : 'warn');
           }
         } while (again);
+        const all = inputKeys();
+        if (all.length && all.every(k => KEY_RE.test(k) && keyState(k) === 'ok')) { keysEditing = false; renderKeyChips(); }
       } finally { checking = false; }
     }
     window.addEventListener('DOMContentLoaded', () => { const ta = $('directKeyInput'); if (ta) ta.addEventListener('input', onKeyInput); });
     setInterval(() => { try { renderKeyChips(); } catch (e) {} }, 30000);
+
+    // ===== CHẾ ĐỘ KHÁCH (không đăng nhập) =====
+    const LIMITS = { keys: 1, images: 2, pdfPages: 2 };
+    function loadGuestKey() {
+      let k = [];
+      try { k = JSON.parse(localStorage.getItem('gemini_guest_key') || '[]').slice(0, LIMITS.keys); } catch (e) {}
+      apiKeys = k; currentKeyIdx = 0; updateKeyUI();
+      if (apiKeys.length) fetchOnlineModels();
+    }
+    function needLogin(msg) {
+      openModal('Cần đăng nhập', `<div class="flex flex-col gap-4 text-center">
+        <div class="mx-auto h-12 w-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-2xl">🔒</div>
+        <p class="text-sm font-semibold text-slate-100">${esc(msg)}</p>
+        <p class="text-xs text-slate-400">Chế độ khách giới hạn: ${LIMITS.keys} API key · ${LIMITS.images} ảnh · PDF ${LIMITS.pdfPages} trang. Hãy đăng nhập (hoặc đăng ký, chờ quản trị duyệt) để chuyển nhiều hơn.</p>
+        <div class="flex flex-col gap-2">${GOOGLE_BTN}
+          <div class="flex gap-2">
+            <button onclick="openAuth('login')" class="flex-1 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-500 hover:from-blue-500 hover:to-indigo-400 text-white text-xs font-bold shadow transition">Đăng nhập</button>
+            <button onclick="openAuth('register')" class="flex-1 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition">Đăng ký</button>
+          </div>
+          <button onclick="closeModal()" class="text-xs text-slate-400 hover:text-slate-200 transition">Để sau</button>
+        </div></div>`);
+    }
+
+    // ===== Ô MẬT KHẨU CÓ NÚT ẨN/HIỆN =====
+    function pwInput(id, ph, auto, extra) {
+      return `<div class="relative w-full"><input id="${id}" type="password" class="${INP} pr-10" placeholder="${ph}" autocomplete="${auto}" ${extra || ''} />
+        <button type="button" tabindex="-1" onclick="toggleEye('${id}', this)" title="Hiện / ẩn mật khẩu" class="absolute right-2 top-1/2 -translate-y-1/2 px-1 text-sm text-slate-400 hover:text-slate-200">👁</button></div>`;
+    }
+    function toggleEye(id, btn) {
+      const el = $(id), show = el.type === 'password';
+      el.type = show ? 'text' : 'password'; btn.textContent = show ? '🙈' : '👁'; el.focus();
+    }
 
     // --- Quản trị ---
     function openAdmin() {
@@ -1053,8 +1115,8 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           <section class="border-t border-slate-800 pt-4">
             <h3 class="text-xs font-bold text-slate-300 mb-2">Đổi mật khẩu quản trị</h3>
             <div class="flex flex-col sm:flex-row gap-2">
-              <input id="adPw1" type="password" class="${INP}" placeholder="Mật khẩu mới" />
-              <input id="adPw2" type="password" class="${INP}" placeholder="Nhập lại" />
+              ${pwInput('adPw1', 'Mật khẩu mới', 'new-password')}
+              ${pwInput('adPw2', 'Nhập lại', 'new-password')}
               <button onclick="changeAdminPw()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0">Lưu</button>
             </div>
           </section>
@@ -1081,7 +1143,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
           <div class="flex-1 min-w-[140px]"><p class="text-xs font-semibold text-slate-200">${esc(r.name || u)} <span class="text-slate-500 font-normal">${r.provider === 'google' ? esc(r.email || '') + ' · Google' : '@' + u}</span></p><p class="text-[10px] text-slate-500">${r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : ''}</p></div>
           <span class="px-2 py-0.5 rounded-full border text-[10px] ${bd[1]}">${bd[0]}</span>
           <div class="flex flex-wrap gap-1">${acts}</div>
-          <div id="pw_${u}" class="w-full gap-2" style="display:none"><input id="pwi_${u}" type="password" class="${INP}" placeholder="Mật khẩu mới cho ${u}" /><button onclick="saveUserPw('${u}')" class="px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shrink-0">Lưu</button></div>
+          <div id="pw_${u}" class="w-full gap-2" style="display:none">${pwInput('pwi_' + u, 'Mật khẩu mới cho ' + u, 'new-password')}<button onclick="saveUserPw('${u}')" class="px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shrink-0">Lưu</button></div>
         </div>`;
       }).join('');
     }
@@ -1257,7 +1319,11 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       startBatchOCR(true);
     }
     async function startBatchOCR(resume) {
-      if (!session) { toast('Vui lòng đăng nhập để sử dụng.'); openAuth('login'); return; }
+      if (!session) {
+        if (isPdfFile && pdfDocGlobal && pdfDocGlobal.numPages > LIMITS.pdfPages) { needLogin(`File PDF có ${pdfDocGlobal.numPages} trang. Chế độ khách chỉ chuyển tối đa ${LIMITS.pdfPages} trang.`); return; }
+        if (!isPdfFile && imageQueue.length > LIMITS.images) { needLogin(`Hàng đợi có ${imageQueue.length} ảnh. Chế độ khách chỉ chuyển tối đa ${LIMITS.images} ảnh.`); return; }
+        if (inputKeys().length > LIMITS.keys) { needLogin('Chế độ khách chỉ dùng 1 API key.'); return; }
+      }
       if (!selectedFileBlob && !imageQueue.length) { toast('Vui lòng chọn file PDF hoặc dán ảnh trước.'); return; }
       if (!getActiveKey()) { toast('Vui lòng nhập ít nhất một Gemini API Key.'); $('directKeyInput').focus(); return; }
 
