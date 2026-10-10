@@ -123,7 +123,7 @@
       <label class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
         <span>📐</span> Chọn định dạng công thức trong file Word (.docx):
       </label>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         
         <label class="cursor-pointer border border-slate-800 bg-slate-950/80 hover:bg-slate-800/60 rounded-xl p-3 flex items-start gap-3 transition group has-[:checked]:border-blue-500 has-[:checked]:bg-blue-950/30 has-[:checked]:ring-1 has-[:checked]:ring-blue-500/50">
           <input type="radio" name="math_format" value="latex" class="mt-1 text-blue-600 focus:ring-0 bg-slate-900 border-slate-700" />
@@ -145,7 +145,14 @@
           <input type="radio" name="math_format" value="mathtype" checked class="mt-1 text-cyan-600 focus:ring-0 bg-slate-900 border-slate-700" />
           <div>
             <div class="font-bold text-sm text-slate-200">MathType</div>
-            <p class="text-xs text-slate-400 mt-1">Công thức là đối tượng MathType thật (Equation.DSMT4). Cần cài MathType để nhấp đúp sửa; không cần bước Convert Equations.</p>
+            <p class="text-xs text-slate-400 mt-1">Công thức là đối tượng MathType thật. Cần cài MathType để nhấp đúp sửa; không cần bước Convert Equations.</p>
+          </div>
+        </label>
+        <label class="cursor-pointer border border-slate-800 bg-slate-950/80 hover:bg-slate-800/60 rounded-xl p-3 flex items-start gap-3 transition group has-[:checked]:border-cyan-500 has-[:checked]:bg-cyan-950/30 has-[:checked]:ring-1 has-[:checked]:ring-cyan-500/50">
+          <input type="radio" name="math_format" value="tex" class="mt-1 text-cyan-600 focus:ring-0 bg-slate-900 border-slate-700" />
+          <div>
+            <div class="font-bold text-sm text-slate-200">LaTeX (.tex)</div>
+            <p class="text-xs text-slate-400 mt-1">Xuất mã LaTeX cho Overleaf, TeX Live (kèm hình trong file .zip). File Word (.docx) nạp vào sẽ được chuyển trực tiếp, không tốn API.</p>
           </div>
         </label>
 
@@ -157,7 +164,7 @@
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
       <div id="dropZone" onclick="triggerFileInput()" class="md:col-span-2 min-h-[210px] border-2 border-dashed border-slate-700 hover:border-blue-500 bg-slate-950/60 hover:bg-slate-900/50 rounded-2xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group">
-        <input type="file" id="hiddenFileInput" multiple accept=".pdf, image/*" class="hidden" onchange="handleFileSelect(event)" />
+        <input type="file" id="hiddenFileInput" multiple accept=".pdf,.docx,.doc,image/*" class="hidden" onchange="handleFileSelect(event)" />
         <div class="h-10 w-10 rounded-full bg-slate-800 group-hover:bg-blue-600/20 text-slate-300 group-hover:text-blue-400 flex items-center justify-center text-lg transition">
           📂
         </div>
@@ -614,6 +621,8 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     const MAX_SIDE = 2600;
 
     function handleFiles(files) {
+      const word = files.find(f => /\.docx?$/i.test(f.name));
+      if (word) { handleWordFile(word); return; }
       const pdf = files.find(f => f.type.includes('pdf') || f.name.toLowerCase().endsWith('.pdf'));
       const imgs = files.filter(f => f.type.startsWith('image/'));
       if (imgs.length) {
@@ -1464,7 +1473,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 
         if (pagesData.length) {
           log(`Đang xuất ${pagesData.length} trang ra DOCX [${fmt.toUpperCase()}]…`);
-          await buildAndDownloadDocxHTML(pagesData, fmt);
+          if (fmt === 'tex') await buildAndDownloadTex(pagesData); else await buildAndDownloadDocxHTML(pagesData, fmt);
         }
 
         const n = pagesData.length;
@@ -2622,6 +2631,210 @@ function mathtypeObjectXml(latex){
     return `<w:r><w:rPr><w:position w:val="${-Math.round(pv.d*2)}"/></w:rPr><w:object w:dxaOrig="${Math.round(pv.w*20)}" w:dyaOrig="${Math.round(pv.h*20)}">${st}<v:shape id="${id}" type="#_x0000_t75" style="width:${pv.w.toFixed(1)}pt;height:${pv.h.toFixed(1)}pt" o:ole=""><v:imagedata r:id="rIdMtImg${n}" o:title=""/></v:shape><o:OLEObject Type="Embed" ProgID="Equation.DSMT4" ShapeID="${id}" DrawAspect="Content" ObjectID="_${1840000000+n}" r:id="rIdMtOle${n}"/></w:object></w:r>`;
   }catch(e){ MT_STATE.failed++; if(typeof console!=='undefined') console.warn('MathType lỗi:',latex,e); return null; }
 }
+
+    // ===== XUẤT LaTeX (.tex) CHO OVERLEAF / TeX LIVE =====
+    const TEX_ESC = { '\\': '\\textbackslash{}', '&': '\\&', '%': '\\%', '#': '\\#', '_': '\\_', '{': '\\{', '}': '\\}', '~': '\\textasciitilde{}', '^': '\\textasciicircum{}', '<': '\\textless{}', '>': '\\textgreater{}' };
+    const texEsc = (t) => String(t).replace(/[\\&%#_{}~^<>]/g, c => TEX_ESC[c]);
+    function inlineTex(text, whole) {
+      let out = '', last = 0, m;
+      const re = /\$\$([\s\S]*?)\$\$|\$([^$]+?)\$/g;
+      const txt = (s) => s.split('**').map((p, i) => i % 2 ? `\\textbf{${texEsc(p)}}` : texEsc(p)).join('');
+      while ((m = re.exec(text))) {
+        out += txt(text.slice(last, m.index));
+        if (m[1] !== undefined) out += (whole && text.trim() === m[0]) ? `\\[${m[1].trim()}\\]` : `$\\displaystyle ${m[1].trim()}$`;
+        else out += `$${m[2].trim()}$`;
+        last = m.index + m[0].length;
+      }
+      return out + txt(text.slice(last));
+    }
+    function pageToTex(text, ctx) {
+      const lines = normalizeMathDelims(text).split('\n'); let out = '', tbl = [];
+      const flush = () => {
+        if (!tbl.length) return;
+        const rows = tbl.filter(l => !/^\|[\s\-:|]+\|$/.test(l.trim())).map(splitTableRow);
+        const n = Math.max(...rows.map(r => r.length));
+        out += `\\begin{center}\n\\begin{tabular}{|${'c|'.repeat(n)}}\n\\hline\n` + rows.map(r => { const c = r.map(x => inlineTex(x)); while (c.length < n) c.push(''); return c.join(' & ') + ' \\\\ \\hline'; }).join('\n') + '\n\\end{tabular}\n\\end{center}\n\n';
+        tbl = [];
+      };
+      for (let raw of lines) {
+        const line = raw.replace(/<br\s*\/?>/gi, ' ').trim();
+        if (/^[-*_=~\s]{3,}$/.test(line) || /^\$+$/.test(line)) continue;
+        if (line.startsWith('|') && line.endsWith('|') && line.length > 1) { tbl.push(line); continue; }
+        flush();
+        if (!line) continue;
+        const im = line.match(/\[IMAGE:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/);
+        const rest = line.replace(/\[IMAGE:[^\]]*\]/g, '').trim();
+        if (rest) {
+          if (/^\**PHẦN/i.test(rest)) out += `\\section*{${inlineTex(rest.replace(/\*\*/g, ''))}}\n\n`;
+          else {
+            const hm = !rest.startsWith('**') && /^((?:Câu|Bài)\s*\d+\s*[.:]?)/i.exec(rest);
+            out += (hm ? `\\textbf{${texEsc(hm[1])}}` + inlineTex(rest.slice(hm[1].length), false) : inlineTex(rest, true)) + '\n\n';
+          }
+        }
+        if (im && ctx && ctx.getImage) {
+          const name = ctx.getImage(+im[1], +im[2], +im[3], +im[4]);
+          if (name) out += `\\begin{center}\n\\includegraphics[width=0.6\\textwidth]{${name}}\n\\end{center}\n\n`;
+        }
+      }
+      flush(); return out;
+    }
+    function texDocument(body) {
+      return `% Biên dịch bằng pdfLaTeX (mặc định của Overleaf) hoặc XeLaTeX/LuaLaTeX
+\\documentclass[12pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[T5]{fontenc}
+\\usepackage[vietnamese]{babel}
+\\usepackage{amsmath,amssymb,amsfonts,graphicx,array}
+\\usepackage[margin=2cm]{geometry}
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{5pt}
+\\begin{document}
+
+${body.trim()}
+
+\\end{document}
+`;
+    }
+    async function downloadTexBundle(tex, images, baseName) {
+      if (images.length) {
+        const z = new JSZip(); z.file('main.tex', tex);
+        images.forEach(im => z.file(im.name, im.data, im.b64 ? { base64: true } : {}));
+        saveAs(await z.generateAsync({ type: 'blob' }), baseName + '.zip');
+        log(`🎉 Đã tải ${baseName}.zip (main.tex + ${images.length} hình). Tải thẳng file .zip này lên Overleaf (New Project → Upload Project).`, 'success');
+      } else {
+        saveAs(new Blob([tex], { type: 'text/plain;charset=utf-8' }), baseName + '.tex');
+        log(`🎉 Đã tải ${baseName}.tex. Dán hoặc tải lên Overleaf / TeX Live để biên dịch.`, 'success');
+      }
+    }
+    async function buildAndDownloadTex(pagesData) {
+      try {
+        const images = []; let body = '';
+        for (const pg of pagesData) {
+          const ctx = { getImage: (a, b, c, d) => { const im = cropCanvasToImage(pg.canvas, a, b, c, d); if (!im) return null; const name = `images/hinh${images.length + 1}.png`; images.push({ name, data: im.base64, b64: true }); return name; } };
+          body += `% ---- ${isPdfFile ? 'Trang' : 'Ảnh'} ${pg.pageNum} ----\n` + pageToTex(pg.text, ctx);
+        }
+        const a = pagesData[0].pageNum, b = pagesData[pagesData.length - 1].pageNum;
+        await downloadTexBundle(texDocument(body), images, `DeThi_OCR_LaTeX${isPdfFile ? `_tr${a}-${b}` : ''}`);
+      } catch (e) { log(`❌ Lỗi tạo LaTeX: ${e.message}`, 'error'); }
+    }
+
+    // ---- Word (.docx) -> LaTeX, không dùng API ----
+    const OM_INV = {}; Object.entries(SYM).forEach(([k, v]) => { if (/^[A-Za-z]+$/.test(k) && v.length === 1 && !(v in OM_INV)) OM_INV[v] = '\\' + k + ' '; });
+    Object.assign(OM_INV, { '×': '\\times ', '⋅': '\\cdot ', '·': '\\cdot ', '≤': '\\leq ', '≥': '\\geq ', '≠': '\\neq ', '→': '\\to ', '°': '^\\circ ', '−': '-', '…': '\\ldots ', 'ε': '\\varepsilon ', 'φ': '\\varphi ' });
+    Object.entries(BIGOPS).forEach(([k, v]) => { OM_INV[v] = '\\' + k + ' '; });
+    const OM_DELIM = { '{': '\\{', '}': '\\}', '': '.', '‖': '\\|', '⟨': '\\langle ', '⟩': '\\rangle ', '⌊': '\\lfloor ', '⌋': '\\rfloor ', '⌈': '\\lceil ', '⌉': '\\rceil ' };
+    const OM_ACC = { '\u20D7': '\\vec', '\u0302': '\\hat', '\u0303': '\\tilde', '\u0307': '\\dot', '\u0308': '\\ddot', '\u0305': '\\overline', '\u00AF': '\\overline' };
+    const omKids = (n) => [...n.children].map(om).join('');
+    const omC = (n, name) => [...n.children].find(c => c.localName === name) || null;
+    const omV = (n, name) => { const c = omC(n, name); return c ? omKids(c) : ''; };
+    const omPr = (n, pr, tag) => { const p = omC(n, pr), c = p && omC(p, tag); return c ? c.getAttribute('m:val') : null; };
+    function om(n) {
+      const ln = n.localName;
+      if (/Pr$/.test(ln)) return '';
+      switch (ln) {
+        case 'r': {
+          const t = [...n.children].filter(c => c.localName === 't').map(c => c.textContent).join('');
+          const rp = omC(n, 'rPr'), nor = rp && omC(rp, 'nor');
+          if (nor) return `\\text{${texEsc(t)}}`;
+          const tt = t.replace(/[\s\u2009\u200a\u2005]/g, '');
+          if (/^(sin|cos|tan|cot|log|ln|lg|lim|max|min|exp|arcsin|arccos|arctan|det)$/.test(tt)) return '\\' + tt + ' ';
+          return [...t].map(c => OM_INV[c] || (/[\u2009\u200a\u2005\u2003]/.test(c) ? ' ' : c)).join('');
+        }
+        case 'f': return omPr(n, 'fPr', 'type') === 'noBar' ? `\\binom{${omV(n, 'num')}}{${omV(n, 'den')}}` : `\\frac{${omV(n, 'num')}}{${omV(n, 'den')}}`;
+        case 'sSup': return `{${omV(n, 'e')}}^{${omV(n, 'sup')}}`;
+        case 'sSub': return `{${omV(n, 'e')}}_{${omV(n, 'sub')}}`;
+        case 'sSubSup': return `{${omV(n, 'e')}}_{${omV(n, 'sub')}}^{${omV(n, 'sup')}}`;
+        case 'rad': { const d = omV(n, 'deg').trim(); return omPr(n, 'radPr', 'degHide') === '1' || !d ? `\\sqrt{${omV(n, 'e')}}` : `\\sqrt[${d}]{${omV(n, 'e')}}`; }
+        case 'nary': { const ch = omPr(n, 'naryPr', 'chr') || '∫', s = omV(n, 'sub').trim(), u = omV(n, 'sup').trim(); return (OM_INV[ch] || '\\int ') + (s ? `_{${s}}` : '') + (u ? `^{${u}}` : '') + ' ' + omV(n, 'e'); }
+        case 'd': {
+          const b = omPr(n, 'dPr', 'begChr'), e = omPr(n, 'dPr', 'endChr'), sp = omPr(n, 'dPr', 'sepChr');
+          const bb = b === null ? '(' : b, ee = e === null ? ')' : e;
+          const es = [...n.children].filter(c => c.localName === 'e');
+          if (bb === '{' && ee === '' && es.length === 1 && omC(es[0], 'eqArr')) return `\\begin{cases}${[...omC(es[0], 'eqArr').children].filter(c => c.localName === 'e').map(omKids).join(' \\\\ ')}\\end{cases}`;
+          return `\\left${OM_DELIM[bb] ?? bb}${es.map(omKids).join(sp || '|')}\\right${OM_DELIM[ee] ?? ee}`;
+        }
+        case 'acc': return `${OM_ACC[omPr(n, 'accPr', 'chr')] || '\\hat'}{${omV(n, 'e')}}`;
+        case 'bar': return `${omPr(n, 'barPr', 'pos') === 'bot' ? '\\underline' : '\\overline'}{${omV(n, 'e')}}`;
+        case 'limLow': return `${omV(n, 'e')}_{${omV(n, 'lim')}}`;
+        case 'limUpp': return `${omV(n, 'e')}^{${omV(n, 'lim')}}`;
+        case 'func': return `${omV(n, 'fName')} ${omV(n, 'e')}`;
+        case 'm': return `\\begin{matrix}${[...n.children].filter(c => c.localName === 'mr').map(r => [...r.children].filter(c => c.localName === 'e').map(omKids).join(' & ')).join(' \\\\ ')}\\end{matrix}`;
+        case 'eqArr': return `\\begin{aligned}${[...n.children].filter(c => c.localName === 'e').map(omKids).join(' \\\\ ')}\\end{aligned}`;
+        default: return omKids(n);
+      }
+    }
+    function handleWordFile(file) {
+      if (/\.doc$/i.test(file.name)) { toast('File .doc (Word cũ) chưa đọc được trong trình duyệt. Hãy mở bằng Word → Lưu thành .docx (hoặc PDF) rồi nạp lại.', 'warn'); return; }
+      convertDocxToTex(file);
+    }
+    async function convertDocxToTex(file) {
+      log(`Đang đọc ${file.name} → LaTeX (không dùng API)…`);
+      try {
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const docF = zip.file('word/document.xml'); if (!docF) throw new Error('Không phải file .docx hợp lệ.');
+        const relsF = zip.file('word/_rels/document.xml.rels'), rels = {};
+        if (relsF) [...(await relsF.async('string')).matchAll(/<Relationship\b[^>]*>/g)].forEach(m => { const i = /Id="([^"]+)"/.exec(m[0]), t = /Target="([^"]+)"/.exec(m[0]); if (i && t) rels[i[1]] = t[1]; });
+        const xml = new DOMParser().parseFromString(await docF.async('string'), 'application/xml');
+        const body = xml.getElementsByTagName('w:body')[0]; if (!body) throw new Error('Không đọc được nội dung.');
+        const images = [], seen = {}; let mt = 0, skipImg = 0;
+        const addImg = async (rid) => {
+          const tg = rels[rid]; if (!tg) return '';
+          const path = 'word/' + tg.replace(/^\.?\//, '').replace(/^word\//, ''), f = zip.file(path);
+          if (!f || !/\.(png|jpe?g|pdf)$/i.test(path)) { skipImg++; return ''; }
+          const name = 'images/' + path.split('/').pop();
+          if (!seen[name]) { seen[name] = 1; images.push({ name, data: await f.async('base64'), b64: true }); }
+          return `\\par\\begin{center}\\includegraphics[width=0.6\\textwidth]{${name}}\\end{center}\\par `;
+        };
+        const flag = (r, tag) => { const p = omC(r, 'rPr'), c = p && omC(p, tag); return !!c && !['0', 'false', 'none'].includes(c.getAttribute('w:val')); };
+        const runTex = async (r) => {
+          let s = '';
+          for (const c of r.children) {
+            const l = c.localName;
+            if (l === 't') s += texEsc(c.textContent);
+            else if (l === 'tab') s += '~~';
+            else if (l === 'br') s += ' \\\\ ';
+            else if (l === 'drawing') { for (const b of c.getElementsByTagName('a:blip')) s += await addImg(b.getAttribute('r:embed')); }
+            else if ((l === 'object' || l === 'pict') && /Equation|DSMT/i.test(c.innerHTML || new XMLSerializer().serializeToString(c))) { mt++; s += `\\textbf{[công thức MathType ${mt}]}`; }
+          }
+          if (!s) return '';
+          const va = omC(r, 'rPr') && [...omC(r, 'rPr').children].find(x => x.localName === 'vertAlign');
+          if (va) s = va.getAttribute('w:val') === 'superscript' ? `\\textsuperscript{${s}}` : va.getAttribute('w:val') === 'subscript' ? `\\textsubscript{${s}}` : s;
+          if (flag(r, 'b')) s = `\\textbf{${s}}`; if (flag(r, 'i')) s = `\\textit{${s}}`;
+          return s;
+        };
+        const paraTex = async (p) => {
+          let out = '', onlyMath = true, hasMath = false;
+          const walk = async (n) => {
+            for (const c of n.children) {
+              const l = c.localName;
+              if (l === 'r') { const t = await runTex(c); if (t) { out += t; onlyMath = false; } }
+              else if (l === 'oMath') { out += `$${om(c).trim()}$`; hasMath = true; }
+              else if (l === 'oMathPara') { out += `\\[${om(c).trim()}\\]`; hasMath = true; }
+              else if (['hyperlink', 'ins', 'smartTag', 'sdt', 'sdtContent', 'fldSimple'].includes(l)) await walk(c);
+            }
+          };
+          await walk(p); out = out.trim(); if (!out) return '';
+          const st = omC(p, 'pPr') && omC(omC(p, 'pPr'), 'pStyle'), h = st && /Heading\s*(\d)/i.exec(st.getAttribute('w:val') || '');
+          return h ? `\\${['section', 'subsection', 'subsubsection'][Math.min(2, +h[1] - 1)]}*{${out}}` : out;
+        };
+        const tblTex = async (t) => {
+          const rows = [];
+          for (const tr of t.children) if (tr.localName === 'tr') {
+            const cells = [];
+            for (const tc of tr.children) if (tc.localName === 'tc') { const ps = []; for (const p of tc.children) if (p.localName === 'p') { const x = await paraTex(p); if (x) ps.push(x); } cells.push(ps.join(' ')); }
+            rows.push(cells);
+          }
+          if (!rows.length) return '';
+          const n = Math.max(...rows.map(r => r.length));
+          return `\\begin{center}\n\\begin{tabular}{|${'c|'.repeat(n)}}\n\\hline\n` + rows.map(r => { while (r.length < n) r.push(''); return r.join(' & ') + ' \\\\ \\hline'; }).join('\n') + '\n\\end{tabular}\n\\end{center}';
+        };
+        let tex = '';
+        for (const c of body.children) { const x = c.localName === 'p' ? await paraTex(c) : c.localName === 'tbl' ? await tblTex(c) : ''; if (x) tex += x + '\n\n'; }
+        await downloadTexBundle(texDocument(tex), images, file.name.replace(/\.docx$/i, '') + '_LaTeX');
+        if (mt) log(`⚠️ Có ${mt} công thức MathType (đối tượng nhúng) chưa đọc trực tiếp được, đã đánh dấu "[công thức MathType k]". Với các công thức này: Lưu .docx thành PDF rồi nạp PDF vào trang để nhận dạng.`, 'warn');
+        if (skipImg) log(`⚠️ Bỏ qua ${skipImg} hình định dạng không dùng được trong LaTeX (WMF/EMF).`, 'warn');
+      } catch (e) { log(`❌ Lỗi đọc .docx: ${e.message}`, 'error'); toast('Không đọc được file .docx này.', 'error'); }
+    }
 
     // --- 6. CROP HÌNH & XUẤT DOCX THẬT (Word Equation / OMML) ---
     function cropCanvasToImage(sourceCanvas, ymin, xmin, ymax, xmax) {
