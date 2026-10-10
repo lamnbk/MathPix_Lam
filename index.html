@@ -436,33 +436,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     function stopOCR() { stopRequested = true; log('Sẽ dừng sau trang hiện tại và xuất phần đã xong…', 'warn'); }
     function resetRange() { if (pdfDocGlobal) { $('pageFrom').value = 1; $('pageTo').value = pdfDocGlobal.numPages; } }
 
-    function loadKeysDual() {
-      const local = localStorage.getItem('gemini_ocr_keys');
-      if (local) {
-        try {
-          apiKeys = JSON.parse(local);
-          updateKeyUI();
-          if (apiKeys.length > 0) fetchOnlineModels();
-        } catch (e) {}
-      }
-
-      if (db) {
-        db.ref('ocr_config/api_keys').once('value', (snapshot) => {
-          const val = snapshot.val();
-          if (val && Array.isArray(val) && val.length > 0) {
-            apiKeys = val;
-            localStorage.setItem('gemini_ocr_keys', JSON.stringify(apiKeys));
-            updateKeyUI();
-            log(`☁️ Đã đồng bộ ${apiKeys.length} API Keys từ Firebase Cloud.`);
-            fetchOnlineModels();
-          }
-        });
-      }
-    }
-
     function updateKeyUI() {
       document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
-      document.getElementById('directKeyInput').value = apiKeys.join('\n');
+      if (!usingShared) document.getElementById('directKeyInput').value = apiKeys.join('\n');
       renderKeyChips();
     }
 
@@ -470,18 +446,23 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       const raw = document.getElementById('directKeyInput').value.trim();
       apiKeys = raw.split(/[\s,]+/).map(k => k.trim()).filter(k => k.length > 0);
       if (!session && apiKeys.length > LIMITS.keys) { apiKeys = apiKeys.slice(0, LIMITS.keys); document.getElementById('directKeyInput').value = apiKeys.join('\n'); needLogin('Chế độ khách chỉ dùng 1 API key.'); }
+      const personal = apiKeys.slice(); const cloudUser = !!(session && session.pwKey && session.role === 'user');
       currentKeyIdx = 0;
-      localStorage.setItem(session ? 'gemini_ocr_keys' : 'gemini_guest_key', JSON.stringify(apiKeys));
-      document.getElementById('keyCountText').textContent = `${apiKeys.length} keys`;
+      if (!session) localStorage.setItem('gemini_guest_key', JSON.stringify(personal));
+      else if (!cloudUser) localStorage.setItem('gemini_keys_' + session.user, JSON.stringify(personal));
+      document.getElementById('keyCountText').textContent = `${personal.length} keys`;
       renderKeyChips();
 
-      if (db && session) {
-        db.ref('ocr_config/api_keys').set(apiKeys)
-          .then(() => log(`☁️ Đã lưu ${apiKeys.length} API Keys lên Firebase.`))
-          .catch((e) => log(`⚠️ Lỗi lưu Firebase: ${e.message}`));
+      if (cloudUser && db) {
+        aesEnc(session.pwKey, JSON.stringify(personal)).then(enc => db.ref('ocr_users/' + session.user + '/keys').set(enc))
+          .then(() => log(`🔒 Đã lưu ${personal.length} API key (mã hóa) trên tài khoản của bạn.`))
+          .catch((e) => log(`⚠️ Lỗi lưu key: ${e.message}`));
       } else {
-        log(`Đã lưu ${apiKeys.length} API Keys vào trình duyệt.`);
+        log(`Đã lưu ${personal.length} API Keys vào trình duyệt.`);
       }
+      usingShared = false;
+      if (session && !personal.length && sharedKeys.length) useShared();
+      updateKeyNote();
       fetchOnlineModels();
     }
 
@@ -840,7 +821,9 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         if (!rec || (await hashPw(rec.salt, pw)) !== rec.hash) { msg('Sai tên đăng nhập hoặc mật khẩu.'); return; }
         if (!isAdmin && rec.status !== 'approved') { msg(rec.status === 'pending' ? 'Tài khoản đang chờ quản trị viên duyệt.' : 'Tài khoản đã bị khóa hoặc bị từ chối.'); return; }
         session = { user: u, role: isAdmin ? 'admin' : 'user', name: isAdmin ? 'Quản trị viên' : (rec.name || u) };
-        if (!isAdmin) { try { localStorage.setItem('ocr_session', JSON.stringify({ user: u })); } catch (e) {} }
+        session.pwKey = await deriveKey(pw, rec.salt);
+        if (isAdmin) { try { const pr = (await db.ref('ocr_admin/pool').once('value')).val(); session.pool = pr ? JSON.parse(await aesDec(session.pwKey, pr)) : []; } catch (e) { session.pool = []; } }
+        else { await ensureKeypair(u, rec, session); try { localStorage.setItem('ocr_session', JSON.stringify({ user: u, k: b64e(await crypto.subtle.exportKey('raw', session.pwKey)) })); } catch (e) {} }
         closeModal(); applyAuthState(); toast(`Xin chào, ${session.name}!`, 'success');
         if (pendingAdmin && isAdmin) { pendingAdmin = false; openAdmin(); }
       } catch (e) { msg('Lỗi kết nối: ' + e.message); }
@@ -851,7 +834,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     function applyAuthState() {
       const on = !!session;
       $('guestBanner').style.display = on ? 'none' : 'flex';
-      $('keyGuestNote').style.display = on ? 'none' : 'block';
+      updateKeyNote();
       $('authGuest').style.display = on ? 'none' : 'flex';
       $('authUser').style.display = on ? 'flex' : 'none';
       if (on) {
@@ -871,7 +854,11 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         const s = JSON.parse(localStorage.getItem('ocr_session') || 'null');
         if (s && s.user && db) {
           const r = (await db.ref('ocr_users/' + s.user).once('value')).val();
-          if (r && r.status === 'approved') session = { user: s.user, role: 'user', name: r.name || s.user };
+          if (r && r.status === 'approved' && s.k) {
+            session = { user: s.user, role: 'user', name: r.name || s.user };
+            session.pwKey = await crypto.subtle.importKey('raw', b64d(s.k), 'AES-GCM', true, ['encrypt', 'decrypt']);
+            await ensureKeypair(s.user, r, session);
+          }
         }
       } catch (e) {}
       applyAuthState();
@@ -1099,6 +1086,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
     // ===== CHẾ ĐỘ KHÁCH (không đăng nhập) =====
     const LIMITS = { keys: 1, images: 2, pdfPages: 2 };
     function loadGuestKey() {
+      sharedKeys = []; usingShared = false; updateKeyNote();
       let k = [];
       try { k = JSON.parse(localStorage.getItem('gemini_guest_key') || '[]').slice(0, LIMITS.keys); } catch (e) {}
       apiKeys = k; currentKeyIdx = 0; updateKeyUI();
@@ -1128,6 +1116,91 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       el.type = show ? 'text' : 'password'; btn.textContent = show ? '🙈' : '👁'; el.focus();
     }
 
+    // ===== API KEY THEO TÀI KHOẢN (mã hóa) & API DÙNG CHUNG DO QUẢN TRỊ CẤP =====
+    const b64e = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const b64d = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    let sharedKeys = [], usingShared = false;
+    async function deriveKey(pw, salt) {
+      const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: new TextEncoder().encode(salt + ':enc'), iterations: 200000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    }
+    async function aesEnc(key, text) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      return { iv: b64e(iv), ct: b64e(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text))) };
+    }
+    async function aesDec(key, o) { return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(o.iv) }, key, b64d(o.ct))); }
+    const RSA = { name: 'RSA-OAEP', hash: 'SHA-256' };
+    async function ensureKeypair(u, rec, sess) {
+      try {
+        if (rec.pub && rec.privEnc) { sess.privKey = await crypto.subtle.importKey('pkcs8', b64d(await aesDec(sess.pwKey, rec.privEnc)), RSA, false, ['decrypt']); return; }
+        const kp = await crypto.subtle.generateKey({ ...RSA, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ['encrypt', 'decrypt']);
+        const pub = b64e(await crypto.subtle.exportKey('spki', kp.publicKey)), priv = b64e(await crypto.subtle.exportKey('pkcs8', kp.privateKey));
+        await db.ref('ocr_users/' + u).update({ pub, privEnc: await aesEnc(sess.pwKey, priv) });
+        sess.privKey = kp.privateKey;
+      } catch (e) {}
+    }
+    async function grantTo(u, pub, list) {
+      if (!pub) return false;
+      const pk = await crypto.subtle.importKey('spki', b64d(pub), RSA, false, ['encrypt']);
+      const A = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+      const enc = await aesEnc(A, JSON.stringify(list));
+      const w = b64e(await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, pk, await crypto.subtle.exportKey('raw', A)));
+      await db.ref('ocr_users/' + u + '/grant').set({ w, iv: enc.iv, ct: enc.ct });
+      return true;
+    }
+    async function loadShared() {
+      sharedKeys = [];
+      try {
+        if (session.role === 'admin') sharedKeys = session.pool || [];
+        else if (session.privKey) {
+          const g = (await db.ref('ocr_users/' + session.user + '/grant').once('value')).val();
+          if (g) { const A = await crypto.subtle.importKey('raw', await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, session.privKey, b64d(g.w)), 'AES-GCM', false, ['decrypt']); sharedKeys = JSON.parse(await aesDec(A, g)); }
+        }
+      } catch (e) {}
+    }
+    function useShared() { apiKeys = sharedKeys.slice(); usingShared = true; currentKeyIdx = 0; }
+    function updateKeyNote() {
+      const n = $('keyGuestNote');
+      if (!session) { n.textContent = '🔓 Chế độ khách: chỉ dùng được 1 API key. Đăng nhập để thêm nhiều key và lưu theo tài khoản.'; n.style.display = 'block'; }
+      else if (usingShared) { n.textContent = '🔐 Đang dùng API dùng chung do quản trị cấp (không hiển thị nội dung key). Nhập key riêng nếu muốn dùng key của bạn.'; n.style.display = 'block'; }
+      else n.style.display = 'none';
+    }
+    async function loadKeysDual() {
+      const kid = session.user; let list = []; usingShared = false;
+      try {
+        if (session.pwKey && session.role === 'user') {
+          const r = (await db.ref('ocr_users/' + kid + '/keys').once('value')).val();
+          if (r) list = JSON.parse(await aesDec(session.pwKey, r));
+        } else list = JSON.parse(localStorage.getItem('gemini_keys_' + kid) || '[]');
+      } catch (e) { log('Không giải mã được danh sách API key của tài khoản (có thể mật khẩu đã được quản trị đặt lại). Hãy nhập lại key.', 'warn'); }
+      apiKeys = Array.isArray(list) ? list : []; currentKeyIdx = 0; updateKeyUI();
+      await loadShared();
+      if (!apiKeys.length && sharedKeys.length) useShared();
+      updateKeyNote();
+      if (apiKeys.length) fetchOnlineModels();
+    }
+
+    // --- Quản trị: API dùng chung ---
+    async function savePool() {
+      const list = $('adPool').value.split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
+      try {
+        session.pool = list; sharedKeys = list;
+        await db.ref('ocr_admin/pool').set(await aesEnc(session.pwKey, JSON.stringify(list)));
+        const all = (await db.ref('ocr_users').once('value')).val() || {}; let n = 0, miss = 0;
+        for (const [u, r] of Object.entries(all)) if (r.granted) { if (await grantTo(u, r.pub, list)) n++; else miss++; }
+        toast(`Đã lưu ${list.length} key dùng chung, cấp lại cho ${n} người${miss ? `, ${miss} người chưa có khóa` : ''}.`, 'success');
+      } catch (e) { toast('Lỗi lưu API dùng chung: ' + e.message, 'error'); }
+    }
+    async function toggleGrant(u) {
+      try {
+        const r = (await db.ref('ocr_users/' + u).once('value')).val() || {};
+        if (r.granted) { await db.ref('ocr_users/' + u).update({ granted: null, grant: null }); toast('Đã thu hồi API dùng chung của ' + u, 'success'); return; }
+        if (!session.pool || !session.pool.length) { toast('Hãy nhập và lưu API dùng chung trước.'); return; }
+        if (!(await grantTo(u, r.pub, session.pool))) { toast('Người này chưa có khóa: cần đăng nhập 1 lần sau bản cập nhật này.', 'warn'); return; }
+        await db.ref('ocr_users/' + u).update({ granted: true }); toast('Đã cấp API dùng chung cho ' + u, 'success');
+      } catch (e) { toast('Lỗi: ' + e.message, 'error'); }
+    }
+
     // --- Quản trị ---
     function openAdmin() {
       if (!session || session.role !== 'admin') {
@@ -1143,6 +1216,12 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
             <div id="adUsers" class="flex flex-col gap-2"></div>
           </section>
           <section class="border-t border-slate-800 pt-4">
+            <h3 class="text-xs font-bold text-slate-300 mb-1">API dùng chung</h3>
+            <p class="text-[10px] text-slate-500 mb-2">Chỉ người được bấm "🔑 Cấp API chung" mới dùng được, và không thấy nội dung key. Mỗi dòng một key.</p>
+            <textarea id="adPool" rows="3" class="${INP} font-mono" placeholder="Dán API key dùng chung"></textarea>
+            <button onclick="savePool()" class="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold">Lưu & cấp lại cho người đã được cấp</button>
+          </section>
+          <section class="border-t border-slate-800 pt-4">
             <h3 class="text-xs font-bold text-slate-300 mb-2">Đổi mật khẩu quản trị</h3>
             <div class="flex flex-col sm:flex-row gap-2">
               ${pwInput('adPw1', 'Mật khẩu mới', 'new-password')}
@@ -1151,6 +1230,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
             </div>
           </section>
         </div>`, true);
+      $('adPool').value = (session.pool || []).join('\n');
       userListRef = db.ref('ocr_users');
       userListRef.on('value', renderUsers);
     }
@@ -1168,7 +1248,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         const bd = badge[r.status] || ['Đã khóa', 'bg-rose-500/10 text-rose-300 border-rose-500/30'];
         const acts = (r.status === 'pending' ? b('✓ Duyệt', `setStatus('${u}','approved')`, ok) + b('Từ chối', `setStatus('${u}','rejected')`)
           : r.status === 'approved' ? b('Khóa', `setStatus('${u}','rejected')`) : b('Duyệt lại', `setStatus('${u}','approved')`, ok))
-          + (r.provider === 'google' ? '' : b('🔑 Đổi MK', `togglePw('${u}')`)) + b('Xóa', `delUser('${u}')`, 'bg-rose-600/80 hover:bg-rose-500 text-white');
+          + (r.provider === 'google' ? '' : b('🔑 Đổi MK', `togglePw('${u}')`) + b(r.granted ? '🚫 Thu hồi API chung' : '🔑 Cấp API chung', `toggleGrant('${u}')`, r.granted ? 'bg-amber-600/80 hover:bg-amber-500 text-white' : '')) + b('Xóa', `delUser('${u}')`, 'bg-rose-600/80 hover:bg-rose-500 text-white');
         return `<div class="flex flex-wrap items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2">
           <div class="flex-1 min-w-[140px]"><p class="text-xs font-semibold text-slate-200">${esc(r.name || u)} <span class="text-slate-500 font-normal">${r.provider === 'google' ? esc(r.email || '') + ' · Google' : '@' + u}</span></p><p class="text-[10px] text-slate-500">${r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : ''}</p></div>
           <span class="px-2 py-0.5 rounded-full border text-[10px] ${bd[1]}">${bd[0]}</span>
@@ -1184,16 +1264,18 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       const v = $('pwi_' + u).value;
       if (v.length < 6) { toast('Mật khẩu tối thiểu 6 ký tự.'); return; }
       const salt = newSalt();
-      await db.ref('ocr_users/' + u).update({ salt, hash: await hashPw(salt, v) });
+      await db.ref('ocr_users/' + u).update({ salt, hash: await hashPw(salt, v), keys: null, privEnc: null, pub: null, grant: null, granted: null });
       $('pwi_' + u).value = ''; $('pw_' + u).style.display = 'none';
-      toast('Đã đổi mật khẩu cho ' + u, 'success');
+      toast('Đã đổi mật khẩu cho ' + u + '. Key riêng và API chung của người này được xóa (mã hóa theo mật khẩu cũ).', 'success');
     }
     async function changeAdminPw() {
       const a = $('adPw1').value, b = $('adPw2').value;
       if (a.length < 6) { toast('Mật khẩu tối thiểu 6 ký tự.'); return; }
       if (a !== b) { toast('Mật khẩu nhập lại không khớp.'); return; }
       const salt = newSalt();
-      await db.ref('ocr_admin').set({ salt, hash: await hashPw(salt, a) });
+      await db.ref('ocr_admin').update({ salt, hash: await hashPw(salt, a) });
+      session.pwKey = await deriveKey(a, salt);
+      await db.ref('ocr_admin/pool').set(await aesEnc(session.pwKey, JSON.stringify(session.pool || [])));
       $('adPw1').value = $('adPw2').value = '';
       toast('Đã đổi mật khẩu quản trị.', 'success');
     }
