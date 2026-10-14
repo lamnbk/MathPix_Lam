@@ -1979,9 +1979,11 @@ function texToOmml(latex, display){
 }
 
 // ---------- Dựng nội dung Word ----------
-function textRun(text,bold){
+const HEAD_COLOR='0000FF'; // màu xanh cho "Câu x." / "Bài x."
+function textRun(text,bold,color){
   if(text==='') return '';
-  return `<w:r>${bold?'<w:rPr><w:b/></w:rPr>':''}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;
+  const rp=(bold||color)?`<w:rPr>${bold?'<w:b/><w:bCs/>':''}${color?`<w:color w:val="${color}"/>`:''}</w:rPr>`:'';
+  return `<w:r>${rp}<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;
 }
 function boldSplit(s,boldAll){
   if(!s) return '';
@@ -2012,7 +2014,8 @@ function inlineToXml(text,fmt,boldAll){
 }
 function para(inner,opts){
   opts=opts||{};
-  return `<w:p><w:pPr><w:spacing w:before="${opts.before??60}" w:after="${opts.after??60}" w:line="324" w:lineRule="auto"/>${opts.center?'<w:jc w:val="center"/>':(opts.left?'':'<w:jc w:val="both"/>')}</w:pPr>${inner}</w:p>`;
+  const tabs=opts.tabs?`<w:tabs>${opts.tabs.map(t=>`<w:tab w:val="left" w:pos="${t}"/>`).join('')}</w:tabs>`:'';
+  return `<w:p><w:pPr>${opts.keepNext?'<w:keepNext/>':''}${opts.keepLines?'<w:keepLines/>':''}${tabs}<w:spacing w:before="${opts.before??60}" w:after="${opts.after??60}" w:line="324" w:lineRule="auto"/>${opts.indent?`<w:ind w:left="${opts.indent}"/>`:''}${opts.center?'<w:jc w:val="center"/>':(opts.left?'':'<w:jc w:val="both"/>')}</w:pPr>${inner}</w:p>`;
 }
 function splitTableRow(line){
   const cells=[]; let cur='',inMath=false;
@@ -2057,6 +2060,70 @@ const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 const TINY_P='<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p>';
 const XMLH='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 
+
+// ---------- Căn chỉnh đáp án trắc nghiệm A. B. C. D. ----------
+const TAB_IND=720; // thụt vào 1 Tab so với lề trái
+const OPT_RE=/^\**\s*\(?([A-D])\s*[.)]\**\s*(.*)$/;
+function optVisibleLen(t){
+  let s=String(t).replace(/\*\*/g,'');
+  s=s.replace(/\$\$([\s\S]*?)\$\$|\$([^$]+?)\$/g,(m,a,b)=>{
+    let x=(a!==undefined?a:b);
+    x=x.replace(/\\(?:left|right|displaystyle|big|Big|bigg|Bigg|,|;|!|quad|qquad)/g,'').replace(/\\[a-zA-Z]+/g,'x').replace(/[{}^_\s]/g,'');
+    return 'x'.repeat(Math.ceil(x.length*1.1));
+  });
+  return s.trim().length;
+}
+// Tách "A. ... B. ... C. ... D. ..." nằm trên cùng 1 dòng; trả null nếu không đủ A,B,C,D
+function splitInlineOptions(line){
+  const masked=line.replace(/\$\$[\s\S]*?\$\$|\$[^$]+?\$/g,m=>'\u0001'.repeat(m.length));
+  const re=/(^|\s)\**([A-D])\s*[.)]\**(?=[\s\u0001]|$)/g; const hits=[]; let m;
+  while((m=re.exec(masked))) hits.push({L:m[2],start:m.index+m[1].length,end:m.index+m[0].length});
+  const seq=[]; let want='A';
+  for(const h of hits){ if(h.L===want){ seq.push(h); want=String.fromCharCode(want.charCodeAt(0)+1); } }
+  if(seq.length<4) return null;
+  const stem=line.slice(0,seq[0].start).trim(); const opts=[];
+  for(let k=0;k<4;k++){
+    const to=k<3?seq[k+1].start:line.length;
+    opts.push({L:seq[k].L,text:line.slice(seq[k].end,to).replace(/\*\*\s*$/,'').trim()});
+  }
+  return {stem,opts};
+}
+// 4 đáp án -> 1 dòng (nếu vừa) / 2 dòng / 4 dòng
+function optionsXml(opts,fmt){
+  const mx=Math.max(...opts.map(o=>optVisibleLen(o.text)));
+  const mode=mx<=15?1:(mx<=32?2:4);
+  const cell=o=>textRun(o.L+'.',true)+textRun(' ',false)+inlineToXml(o.text,fmt,false);
+  const TAB='<w:r><w:tab/></w:r>';
+  const W=9746-TAB_IND, q=Math.floor(W/4), h=Math.floor(W/2);
+  let rows,tabs;
+  if(mode===1){ rows=[opts.map(cell).join(TAB)]; tabs=[TAB_IND+q,TAB_IND+2*q,TAB_IND+3*q]; }
+  else if(mode===2){ rows=[cell(opts[0])+TAB+cell(opts[1]),cell(opts[2])+TAB+cell(opts[3])]; tabs=[TAB_IND+h]; }
+  else { rows=opts.map(cell); tabs=null; }
+  return rows.map((r,i)=>para(r,{left:true,indent:TAB_IND,tabs,before:i===0?20:0,after:i===rows.length-1?100:0,keepNext:i<rows.length-1,keepLines:true})).join('');
+}
+// Nhận diện dòng mở đầu "Câu x." / "Bài x." (kể cả khi AI bọc **)
+function matchHead(t){
+  const m=/^\**\s*((?:Câu|Bài)\s*\d+[.:]?)\**\s*/i.exec(t);
+  if(!m) return null;
+  return {label:m[1].trim(),rest:t.slice(m[0].length)};
+}
+function matchSub(t){ // a) b) c) d)
+  const m=/^\**\s*\(?([a-h])\)\**\s*/.exec(t);
+  if(!m) return null;
+  return {label:m[1]+')',rest:t.slice(m[0].length)};
+}
+function lineToXml(textLine,fmt){
+  const plain=textLine.replace(/^\*\*/,'');
+  if(/^\**PHẦN/i.test(textLine)||/^\**PHẦN/i.test(plain)) return {inner:inlineToXml(textLine,fmt,true),opts:{}};
+  const hm=matchHead(textLine);
+  if(hm) return {inner:textRun(hm.label,true,HEAD_COLOR)+(hm.rest?textRun(' ',false)+inlineToXml(hm.rest,fmt,false):''),opts:{before:140}};
+  const sm=matchSub(textLine);
+  if(sm) return {inner:textRun(sm.label,true)+(sm.rest?textRun(' ',false)+inlineToXml(sm.rest,fmt,false):''),opts:{indent:TAB_IND}};
+  const om=OPT_RE.exec(textLine);
+  if(om) return {inner:textRun(om[1]+'.',true)+(om[2]?textRun(' ',false)+inlineToXml(om[2],fmt,false):''),opts:{indent:TAB_IND}};
+  return {inner:inlineToXml(textLine,fmt,false),opts:{}};
+}
+
 function normalizeMathDelims(t){
   return t.replace(/\\\[([\s\S]*?)\\\]/g,(m,a)=>'$$'+a+'$$').replace(/\\\(([\s\S]*?)\\\)/g,(m,a)=>'$'+a+'$');
 }
@@ -2080,13 +2147,34 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
       let textLine=line;
       if(im) textLine=line.replace(new RegExp(imgRe.source,'g'),'').trim();
       if(textLine){
-        const plain=textLine.replace(/^\*\*/,'');
-        let inner;
-        const hm=!textLine.startsWith('**')&&/^((?:Câu|Bài)\s*\d+\s*[.:]?)/i.exec(textLine);
-        if(/^\**PHẦN/i.test(textLine)||/^\**PHẦN/i.test(plain)) inner=inlineToXml(textLine,fmt,true);
-        else if(hm) inner=textRun(hm[1],true)+inlineToXml(textLine.slice(hm[1].length),fmt,false);
-        else inner=inlineToXml(textLine,fmt,false);
-        if(inner) body+=para(inner,{center: fmt==='mathtype' && /^\$\$[\s\S]+\$\$$/.test(textLine.trim()) && (textLine.match(/\$\$/g)||[]).length===2});
+        const center=fmt==='mathtype' && /^\$\$[\s\S]+\$\$$/.test(textLine.trim()) && (textLine.match(/\$\$/g)||[]).length===2;
+        let handled=false;
+        // (a) 4 đáp án nằm trên cùng 1 dòng
+        const si=!im&&splitInlineOptions(textLine);
+        if(si){
+          if(si.stem){ const r=lineToXml(si.stem,fmt); body+=para(r.inner,Object.assign({keepNext:true},r.opts)); }
+          body+=optionsXml(si.opts,fmt); handled=true;
+        }
+        // (b) 4 đáp án nằm trên 4 dòng liên tiếp A. / B. / C. / D.
+        if(!handled && !im){
+          const a=OPT_RE.exec(textLine);
+          if(a&&a[1]==='A'){
+            const got=[{L:'A',text:a[2]}]; let j=i+1, want='B';
+            while(j<lines.length&&want<='D'){
+              const nl=lines[j].replace(/<br\s*\/?>/gi,' ').trim();
+              if(!nl){ j++; continue; }
+              if(/\[IMAGE:/.test(nl)) break;
+              const o=OPT_RE.exec(nl);
+              if(!o||o[1]!==want) break;
+              got.push({L:want,text:o[2]}); want=String.fromCharCode(want.charCodeAt(0)+1); j++;
+            }
+            if(got.length===4){ body+=optionsXml(got.map(g=>({L:g.L,text:g.text.replace(/\*\*\s*$/,'').trim()})),fmt); i=j-1; handled=true; }
+          }
+        }
+        if(!handled){
+          const r=lineToXml(textLine,fmt);
+          if(r.inner) body+=para(r.inner,Object.assign({center},r.opts));
+        }
       }
       if(im){
         const [,ymin,xmin,ymax,xmax]=im.map(Number);
@@ -2095,7 +2183,7 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
       }
     }
     flushTbl();
-    if(pIdx>0&&opts&&opts.pageBreaks){ const seg=body.slice(startLen); body=body.slice(0,startLen)+seg.replace('<w:pPr>','<w:pPr><w:pageBreakBefore/>'); }
+    if(pIdx>0&&opts&&opts.pageBreaks){ const seg=body.slice(startLen); body=body.slice(0,startLen)+seg.replace(/<w:pPr>((?:<w:keepNext\/>)?(?:<w:keepLines\/>)?)/,'<w:pPr>$1<w:pageBreakBefore/>'); }
   });
   if(body.endsWith('</w:tbl>')) body+=TINY_P;
   const doc=`${XMLH}<w:document ${NS}><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`;
