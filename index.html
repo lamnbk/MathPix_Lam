@@ -341,7 +341,8 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 |---|---|
 | Dữ liệu 1 | Dữ liệu 2 |
 6. Nếu trang có hình vẽ (hình học, đồ thị, sơ đồ), KHÔNG mô tả hình bằng chữ. Tại đúng vị trí hình xuất hiện (theo thứ tự đọc), viết MỘT dòng riêng: [IMAGE: ymin, xmin, ymax, xmax]. Tọa độ là SỐ NGUYÊN từ 0 đến 1000 theo chiều cao và chiều rộng của cả trang (gốc ở góc trên bên trái), KHÔNG dùng số thập phân, KHÔNG dùng phần trăm. Khung phải bao trọn hình, gồm trục tọa độ, nhãn điểm (A, B, C...), số trên trục; không bao gồm chữ của đề bài. Ví dụ: [IMAGE: 320, 450, 610, 880]. Không coi bảng số liệu hay công thức là hình.
-7. Mỗi câu/đoạn văn viết LIÊN TỤC trên MỘT dòng: KHÔNG xuống dòng theo bề ngang trang giấy. Chỉ xuống dòng khi bắt đầu Câu/Bài mới, ý a) b) c), đáp án A. B. C. D., mục mới, hoặc khi có công thức/hình/bảng đứng riêng một dòng.`;
+7. Mỗi câu/đoạn văn viết LIÊN TỤC trên MỘT dòng: KHÔNG xuống dòng theo bề ngang trang giấy. Chỉ xuống dòng khi bắt đầu Câu/Bài mới, ý a) b) c), đáp án A. B. C. D., mục mới, hoặc khi có công thức/hình/bảng đứng riêng một dòng.
+8. Dòng chấm chấm (………) hoặc gạch dưới dùng để điền chỗ trống: chỉ chép tối đa 20 ký tự rồi xuống dòng hoặc chép tiếp chữ phía sau, TUYỆT ĐỐI không lặp dấu chấm quá dài. Phải chép đủ cả các dòng chữ ở cuối trang như "Hết", "Họ tên học sinh…".`;
 
     let apiKeys = [];
     let currentKeyIdx = 0;
@@ -724,6 +725,8 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       
       // Loại bỏ khối bọc ```markdown hoặc ```
       let cleaned = rawText.replace(/^```[a-zA-Z]*\n?/gm, '').replace(/```$/gm, '');
+      // Dòng chấm chấm (điền chỗ trống) bị AI lặp quá dài: cắt gọn
+      cleaned = cleaned.split('\n').map(l => (l.trim() && /^[\s.…·]+$/.test(l)) ? l.trim().slice(0, 110) : l.replace(/[.…·]{40,}/g, m => m.slice(0, 40))).join('\n');
       cleaned = cleaned.replace(/\\\[([\s\S]*?)\\\]/g, (m, a) => '$$' + a + '$$').replace(/\\\(([\s\S]*?)\\\)/g, (m, a) => '$' + a + '$');
       
       // Lọc các dòng mở đầu rác của AI
@@ -1379,7 +1382,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       if (!$('optHeaderFooter').checked) extra.push('BỎ QUA hoàn toàn tiêu đề đầu trang (header), chân trang (footer) và số trang; không chép chúng vào kết quả.');
       const ig = getIgnoreList();
       if (ig.length) extra.push('KHÔNG chép các nội dung sau nếu xuất hiện trên trang (bỏ qua hoàn toàn):\n' + ig.map(x => '- ' + x).join('\n'));
-      return SYSTEM_PROMPT + (extra.length ? '\n' + extra.map((e, i) => `${8 + i}. ${e}`).join('\n') : '');
+      return SYSTEM_PROMPT + (extra.length ? '\n' + extra.map((e, i) => `${9 + i}. ${e}`).join('\n') : '');
     }
     function applyIgnore(text) {
       const ig = getIgnoreList();
@@ -1626,8 +1629,17 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
             const why = cand?.finishReason || resData.promptFeedback?.blockReason;
             const ee = new Error('AI không trả về văn bản' + (why ? ` (${why})` : '') + '.'); ee.empty = true; throw ee;
           }
+          let finalText = outText;
+          if (/[.…·]{400,}/.test(outText)) { // AI bị lặp dấu chấm vô tận => mất phần chữ phía sau, chạy lại 1 lần với nhắc nhở chặt hơn
+            log('Trang có dòng chấm bị lặp quá dài, đang chạy lại một lần…', 'warn');
+            try {
+              const b2 = { ...body, system_instruction: { parts: [{ text: body.system_instruction.parts[0].text + '\nCẢNH BÁO: dòng chấm chấm chỉ chép đúng 15 dấu chấm. Không lặp dài. Chép tiếp các dòng chữ còn lại của trang.' }] } };
+              const r2 = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...b2, generationConfig: genCfg(model) }) });
+              if (r2.ok) { const j2 = await r2.json(); const t2 = (j2.candidates?.[0]?.content?.parts || []).map(x => x.text || '').join('').trim(); if (t2 && !/[.…·]{400,}/.test(t2)) finalText = t2; }
+            } catch (_) {}
+          }
           markKey(key, 'ok');
-          return outText;
+          return finalText;
 
         } catch (err) {
           lastErr = err;
@@ -2050,11 +2062,16 @@ function tableXml(rawLines,fmt){
   }
   return x+'</w:tbl>';
 }
-function imageXml(id,wpx,hpx){
-  const maxW=576; let w=wpx,h=hpx;
-  if(w>maxW){h=h*maxW/w;w=maxW;}
-  const cx=Math.max(1,Math.round(w*9525)),cy=Math.max(1,Math.round(h*9525));
-  return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Hinh ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="img${id}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+function imageXml(id,wpx,hpx){ return imagesXml([{id,w:wpx,h:hpx}]); }
+// Một hoặc nhiều hình trên cùng một dòng (hình nằm cạnh nhau ở bản gốc)
+function imagesXml(list){
+  const maxW=576, gap=24;
+  const tot=list.reduce((t,x)=>t+x.w,0)+gap*(list.length-1), k=tot>maxW?maxW/tot:1;
+  const run=(it)=>{
+    const id=it.id, cx=Math.max(1,Math.round(it.w*k*9525)), cy=Math.max(1,Math.round(it.h*k*9525));
+    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Hinh ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="img${id}.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImg${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+  };
+  return `<w:p><w:pPr><w:jc w:val="center"/></w:pPr>${list.map(run).join('<w:r><w:t xml:space="preserve">      </w:t></w:r>')}</w:p>`;
 }
 
 const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w10="urn:schemas-microsoft-com:office:word"';
@@ -2104,7 +2121,7 @@ function optionsXml(opts,fmt){
 }
 // Nhận diện dòng mở đầu "Câu x." / "Bài x." (kể cả khi AI bọc **)
 function matchHead(t){
-  const m=/^\**\s*((?:Câu|Bài)\s*\d+[.:]?)\**\s*/i.exec(t);
+  const m=/^\**\s*((?:[Cc]âu|[Bb]ài|CÂU|BÀI)\s*(?:\d+|[IVXLC]+(?![\p{L}\d]))[.:]?)\**\s*/u.exec(t);
   if(!m) return null;
   return {label:m[1].trim(),rest:t.slice(m[0].length)};
 }
@@ -2157,12 +2174,13 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
   pagesData.forEach((page,pIdx)=>{
     const startLen=body.length;
     const lines=mergeWrappedLines(normalizeMathDelims(page.text).split('\n'));
-    let tbl=[];
+    let tbl=[]; let grp=[];
+    const flushImgs=()=>{ if(grp.length){ body+=imagesXml(grp.map(g=>({id:g.id,w:g.w,h:g.h}))); grp=[]; } };
     const flushTbl=()=>{ if(tbl.length){ if(body.endsWith('</w:tbl>')) body+=TINY_P; body+=tableXml(tbl,fmt); tbl=[]; } };
     for(let i=0;i<lines.length;i++){
       const line=lines[i].replace(/<br\s*\/?>/gi,' ').trim();
       if(/^[-*_=~\s]{3,}$/.test(line)||/^\$+$/.test(line)) continue;
-      if(line.startsWith('|')&&line.endsWith('|')&&line.length>1){tbl.push(line);continue;}
+      if(line.startsWith('|')&&line.endsWith('|')&&line.length>1){flushImgs();tbl.push(line);continue;}
       flushTbl();
       if(!line) continue;
       const imgRe=/\[IMAGE:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/;
@@ -2170,6 +2188,7 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
       let textLine=line;
       if(im) textLine=line.replace(new RegExp(imgRe.source,'g'),'').trim();
       if(textLine){
+        flushImgs();
         const center=fmt==='mathtype' && /^\$\$[\s\S]+\$\$$/.test(textLine.trim()) && (textLine.match(/\$\$/g)||[]).length===2;
         let handled=false;
         // (a) 4 đáp án nằm trên cùng 1 dòng
@@ -2202,10 +2221,10 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
       if(im){
         const [,ymin,xmin,ymax,xmax]=im.map(Number);
         const img=getImage(page,ymin,xmin,ymax,xmax);
-        if(img){media.push(img.base64); body+=imageXml(media.length,img.w,img.h);}
+        if(img){ media.push(img.base64); const lg=grp[grp.length-1]; if(lg&&(Math.min(lg.ymax,ymax)-Math.max(lg.ymin,ymin))<0.5*Math.min(lg.ymax-lg.ymin,ymax-ymin)) flushImgs(); grp.push({id:media.length,w:img.w,h:img.h,ymin,ymax}); }
       }
     }
-    flushTbl();
+    flushImgs(); flushTbl();
     if(pIdx>0&&opts&&opts.pageBreaks){ const seg=body.slice(startLen); body=body.slice(0,startLen)+seg.replace(/<w:pPr>((?:<w:keepNext\/>)?(?:<w:keepLines\/>)?)/,'<w:pPr>$1<w:pageBreakBefore/>'); }
   });
   if(body.endsWith('</w:tbl>')) body+=TINY_P;
@@ -2860,7 +2879,7 @@ function mathtypeObjectXml(latex){
         if (rest) {
           if (/^\**PHẦN/i.test(rest)) out += `\\section*{${inlineTex(rest.replace(/\*\*/g, ''))}}\n\n`;
           else {
-            const hm = !rest.startsWith('**') && /^((?:Câu|Bài)\s*\d+\s*[.:]?)/i.exec(rest);
+            const hm = !rest.startsWith('**') && /^((?:[Cc]âu|[Bb]ài|CÂU|BÀI)\s*(?:\d+|[IVXLC]+(?![\p{L}\d]))\s*[.:]?)/u.exec(rest);
             out += (hm ? `\\textbf{${texEsc(hm[1])}}` + inlineTex(rest.slice(hm[1].length), false) : inlineTex(rest, true)) + '\n\n';
           }
         }
@@ -3034,7 +3053,7 @@ ${body.trim()}
     // (giống cách MathPix: lề ~1-2% kích thước hình, không dính chữ của đề). Trả về null nếu không chắc để dùng cách cũ.
     function refineFigureRect(src, ymin, xmin, ymax, xmax) {
       try {
-        const W = src.width, H = src.height, SLACK = 15, S = 2;
+        const W = src.width, H = src.height, SLACK = 80, S = 2;
         const rx0 = Math.max(0, Math.floor((xmin - SLACK) * W / 1000)), ry0 = Math.max(0, Math.floor((ymin - SLACK) * H / 1000));
         const rx1 = Math.min(W, Math.ceil((xmax + SLACK) * W / 1000)), ry1 = Math.min(H, Math.ceil((ymax + SLACK) * H / 1000));
         const rw = rx1 - rx0, rh = ry1 - ry0;
@@ -3067,22 +3086,25 @@ ${body.trim()}
             if (prof[i] >= 2) { if (s0 < 0) s0 = i; else if (i - last > gapTol + 1) { segs.push([s0, last]); s0 = i; } last = i; }
           }
           if (s0 >= 0) segs.push([s0, last]);
-          const keep = segs.filter(g => { const c = (g[0] + g[1]) / 2; return c >= lo && c <= hi; });
+          const boxLen = Math.max(1, hi - lo);
+          // Giữ đoạn chồng lên khung AI (kể cả khi khung AI bị hụt, hình kéo dài ra ngoài); bỏ chữ đề nằm ngoài khung
+          const keep = segs.filter(g => { const ov = Math.min(g[1] + 1, hi) - Math.max(g[0], lo), len = g[1] - g[0] + 1; return ov > 0 && (ov >= 0.5 * len || ov >= 0.5 * boxLen); });
           return keep.length ? [keep[0][0], keep[keep.length - 1][1]] : null;
         };
         let cx0 = 0, cx1 = gw - 1, cy0 = 0, cy1 = gh - 1;
         for (let pass = 0; pass < 2; pass++) {
           const rowP = new Int32Array(gh), colP = new Int32Array(gw);
           for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) if (ink[y * gw + x]) rowP[y]++;
-          const rr = pick(rowP, gh, 3, by0, by1); if (!rr) return null; cy0 = rr[0]; cy1 = rr[1];
+          const rr = pick(rowP, gh, 4, by0, by1); if (!rr) return null; cy0 = rr[0]; cy1 = rr[1];
           for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) if (ink[y * gw + x]) colP[x]++;
-          const cc = pick(colP, gw, 6, bx0, bx1); if (!cc) return null; cx0 = cc[0]; cx1 = cc[1];
+          const cc = pick(colP, gw, 8, bx0, bx1); if (!cc) return null; cx0 = cc[0]; cx1 = cc[1];
         }
         const ux0 = cx0, ux1 = cx1, uy0 = cy0, uy1 = cy1;
         const fx0 = rx0 + ux0 * S, fy0 = ry0 + uy0 * S, fx1 = rx0 + (ux1 + 1) * S, fy1 = ry0 + (uy1 + 1) * S;
         const fw = fx1 - fx0, fh = fy1 - fy0;
         // Hình tìm được quá nhỏ so với khung AI cho => không tin, dùng cách cũ
         if (fw * fh < 0.3 * ((xmax - xmin) * W / 1000) * ((ymax - ymin) * H / 1000)) return null;
+        if (fw * fh > 3.5 * ((xmax - xmin) * W / 1000) * ((ymax - ymin) * H / 1000)) return null;
         const m = Math.min(24, Math.max(8, Math.round(0.02 * Math.max(fw, fh))));
         const x = Math.max(0, Math.floor(fx0 - m)), y = Math.max(0, Math.floor(fy0 - m));
         return { x, y, w: Math.min(W, Math.ceil(fx1 + m)) - x, h: Math.min(H, Math.ceil(fy1 + m)) - y };
