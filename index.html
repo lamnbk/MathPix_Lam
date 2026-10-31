@@ -340,7 +340,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 | Cột 1 | Cột 2 |
 |---|---|
 | Dữ liệu 1 | Dữ liệu 2 |
-6. Nếu trang có hình vẽ (hình học, đồ thị, sơ đồ), KHÔNG mô tả hình bằng chữ. Tại đúng vị trí hình xuất hiện (theo thứ tự đọc), viết MỘT dòng riêng: [IMAGE: ymin, xmin, ymax, xmax]. Tọa độ là SỐ NGUYÊN từ 0 đến 1000 theo chiều cao và chiều rộng của cả trang (gốc ở góc trên bên trái), KHÔNG dùng số thập phân, KHÔNG dùng phần trăm. Khung phải bao trọn hình, gồm trục tọa độ, nhãn điểm (A, B, C...), số trên trục; không bao gồm chữ của đề bài. Ví dụ: [IMAGE: 320, 450, 610, 880]. Không coi bảng số liệu hay công thức là hình.
+6. Nếu trang có hình vẽ (hình học, đồ thị, sơ đồ) hoặc ảnh chụp/ảnh minh họa (đồ vật, công trình, cảnh vật…), KHÔNG mô tả hình bằng chữ. Tại đúng vị trí hình xuất hiện (theo thứ tự đọc), viết MỘT dòng riêng: [IMAGE: ymin, xmin, ymax, xmax]. Tọa độ là SỐ NGUYÊN từ 0 đến 1000 theo chiều cao và chiều rộng của cả trang (gốc ở góc trên bên trái), KHÔNG dùng số thập phân, KHÔNG dùng phần trăm. Khung phải bao trọn hình, gồm trục tọa độ, nhãn điểm (A, B, C...), số trên trục; không bao gồm chữ của đề bài. Ví dụ: [IMAGE: 320, 450, 610, 880]. Không coi bảng số liệu hay công thức là hình. MỖI hình (kể cả ảnh chụp) có một thẻ [IMAGE] riêng, mỗi thẻ trên MỘT dòng riêng; nếu nhiều hình nằm cạnh nhau trên cùng một hàng thì viết lần lượt từ trái sang phải, mỗi hình một dòng. Không bỏ sót hình nào.
 7. Mỗi câu/đoạn văn viết LIÊN TỤC trên MỘT dòng: KHÔNG xuống dòng theo bề ngang trang giấy. Chỉ xuống dòng khi bắt đầu Câu/Bài mới, ý a) b) c), đáp án A. B. C. D., mục mới, hoặc khi có công thức/hình/bảng đứng riêng một dòng.
 8. Dòng chấm chấm (………) hoặc gạch dưới dùng để điền chỗ trống: chỉ chép tối đa 20 ký tự rồi xuống dòng hoặc chép tiếp chữ phía sau, TUYỆT ĐỐI không lặp dấu chấm quá dài. Phải chép đủ cả các dòng chữ ở cuối trang như "Hết", "Họ tên học sinh…".`;
 
@@ -1286,7 +1286,7 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
 
     // ===== NHẬN DIỆN & CẮT HÌNH VẼ CHUẨN HƠN =====
     const FIG_TAG_RE = /\[\s*(?:IMAGE|HÌNH|HINH|FIGURE|BOX)\s*[:：=]?\s*\[?\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*\]?\s*\]/gi;
-    const DETECT_PROMPT = 'Phát hiện tất cả HÌNH VẼ trong trang này: hình hình học, đồ thị hàm số, sơ đồ, hình minh họa. KHÔNG tính văn bản, công thức hay bảng số liệu. Mỗi hình có một khung bao sát toàn bộ hình, gồm cả trục tọa độ, nhãn điểm (A, B, C...), số trên trục và chú thích nằm sát hình. Trả về JSON thuần: [{"box_2d":[ymin,xmin,ymax,xmax],"label":"..."}] với tọa độ là số nguyên 0 đến 1000 (gốc ở góc trên bên trái), sắp xếp từ trên xuống dưới rồi trái sang phải. Nếu không có hình, trả về [].';
+    const DETECT_PROMPT = 'Phát hiện tất cả HÌNH VẼ trong trang này: hình hình học, đồ thị hàm số, sơ đồ, hình minh họa và cả ảnh chụp (đồ vật, công trình, cảnh vật). KHÔNG tính văn bản, công thức hay bảng số liệu. Mỗi hình có một khung bao sát toàn bộ hình, gồm cả trục tọa độ, nhãn điểm (A, B, C...), số trên trục và chú thích nằm sát hình. Trả về JSON thuần: [{"box_2d":[ymin,xmin,ymax,xmax],"label":"..."}] với tọa độ là số nguyên 0 đến 1000 (gốc ở góc trên bên trái), sắp xếp từ trên xuống dưới rồi trái sang phải. Nếu không có hình, trả về [].';
 
     // Chuẩn hóa về [ymin,xmin,ymax,xmax] số nguyên 0–1000. Tự nhận ra thang 0–1, phần trăm, hoặc điểm ảnh.
     function normalizeBox(v, w, h, strict) {
@@ -1317,12 +1317,14 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
         if (bi >= 0 && best > 0.2) { used.add(bi); return det[bi]; }
         return t;
       });
-      return out.map(r => {
+      const res = out.map(r => {
         if (r !== undefined) return r;
         const j = det.findIndex((d, k) => !used.has(k));
         if (j < 0) return null;
         used.add(j); return det[j];
       });
+      res.extra = det.filter((d, k) => !used.has(k));
+      return res;
     }
     async function detectFigureBoxes(b64, modelSel) {
       const chain = autoChain();
@@ -1352,8 +1354,13 @@ QUY TẮC CỰC KỲ QUAN TRỌNG:
       let det = null;
       if ($('optFigDetect').checked) { log(`Dò chính xác ${tags.length} hình vẽ…`); det = await detectFigureBoxes(b64, modelSel); }
       const finalBoxes = det && det.length ? matchBoxes(boxes, det) : boxes;
+      const extra = (det && det.length && finalBoxes.extra) || [];
+      const tg = (b) => `[IMAGE: ${b.join(', ')}]`, after = {}, pre = [];
+      extra.forEach(e => { let bj = -1, by = -1; finalBoxes.forEach((b, j) => { if (b && b[0] <= e[0] + 30 && b[0] > by) { by = b[0]; bj = j; } }); if (bj < 0) pre.push(e); else (after[bj] = after[bj] || []).push(e); });
+      if (extra.length) log(`Dò thêm được ${extra.length} hình mà bước OCR đã bỏ sót.`, 'success');
       let k = 0;
-      const out = text.replace(FIG_TAG_RE, () => { const b = finalBoxes[k++]; return b ? `[IMAGE: ${b.join(', ')}]` : ''; });
+      let out = text.replace(FIG_TAG_RE, () => { const j = k++, b = finalBoxes[j]; let r = b ? tg(b) : ''; if (j === 0 && pre.length) r = pre.map(tg).join('\n') + '\n' + r; if (after[j]) r += '\n' + after[j].map(tg).join('\n'); return r; });
+      out = out.replace(/(\[IMAGE: [^\]]*\])[ \t]*(?=\[IMAGE:)/g, '$1\n'); // mỗi hình một dòng, tránh rơi hình khi 2 thẻ nằm cùng dòng
       const ok = finalBoxes.filter(Boolean).length;
       if (ok < tags.length) log(`Có ${tags.length - ok} hình không xác định được vị trí, đã bỏ qua.`, 'warn');
       return out.replace(/\[\s*IMAGE(?![: ]+\d+, \d+, \d+, \d+\])[^\]]*\]/gi, '');
@@ -2184,7 +2191,7 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
       flushTbl();
       if(!line) continue;
       const imgRe=/\[IMAGE:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/;
-      const im=line.match(imgRe);
+      const ims=[...line.matchAll(new RegExp(imgRe.source,'g'))]; const im=ims[0]||null;
       let textLine=line;
       if(im) textLine=line.replace(new RegExp(imgRe.source,'g'),'').trim();
       if(textLine){
@@ -2218,10 +2225,11 @@ async function buildDocxBlob(pagesData,fmt,getImage,JSZipLib,opts){
           if(r.inner) body+=para(r.inner,Object.assign({center},r.opts));
         }
       }
-      if(im){
-        const [,ymin,xmin,ymax,xmax]=im.map(Number);
+      for(const mm of ims){
+        const [,ymin,xmin,ymax,xmax]=mm.map(Number);
         const img=getImage(page,ymin,xmin,ymax,xmax);
-        if(img){ media.push(img.base64); const lg=grp[grp.length-1]; if(lg&&(Math.min(lg.ymax,ymax)-Math.max(lg.ymin,ymin))<0.5*Math.min(lg.ymax-lg.ymin,ymax-ymin)) flushImgs(); grp.push({id:media.length,w:img.w,h:img.h,ymin,ymax}); }
+        if(!img){ if(typeof log==='function') log('Không cắt được một hình ở trang '+page.pageNum+', đã bỏ qua.','warn'); continue; }
+        { media.push(img.base64); const lg=grp[grp.length-1]; if(lg&&(Math.min(lg.ymax,ymax)-Math.max(lg.ymin,ymin))<0.5*Math.min(lg.ymax-lg.ymin,ymax-ymin)) flushImgs(); grp.push({id:media.length,w:img.w,h:img.h,ymin,ymax}); }
       }
     }
     flushImgs(); flushTbl();
@@ -2874,7 +2882,7 @@ function mathtypeObjectXml(latex){
         if (line.startsWith('|') && line.endsWith('|') && line.length > 1) { tbl.push(line); continue; }
         flush();
         if (!line) continue;
-        const im = line.match(/\[IMAGE:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/);
+        const ims = [...line.matchAll(/\[IMAGE:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]/g)];
         const rest = line.replace(/\[IMAGE:[^\]]*\]/g, '').trim();
         if (rest) {
           if (/^\**PHẦN/i.test(rest)) out += `\\section*{${inlineTex(rest.replace(/\*\*/g, ''))}}\n\n`;
@@ -2883,7 +2891,7 @@ function mathtypeObjectXml(latex){
             out += (hm ? `\\textbf{${texEsc(hm[1])}}` + inlineTex(rest.slice(hm[1].length), false) : inlineTex(rest, true)) + '\n\n';
           }
         }
-        if (im && ctx && ctx.getImage) {
+        for (const im of ims) if (ctx && ctx.getImage) {
           const name = ctx.getImage(+im[1], +im[2], +im[3], +im[4]);
           if (name) out += `\\begin{center}\n\\includegraphics[width=0.6\\textwidth]{${name}}\n\\end{center}\n\n`;
         }
